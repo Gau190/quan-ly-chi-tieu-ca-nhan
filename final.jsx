@@ -4,11 +4,76 @@ import {
   ChevronRight, Bell, Target, Wallet, ShieldCheck, History, MoreHorizontal, 
   ArrowDownLeft, ArrowUpRight, X, Coffee, ShoppingBag, Car, FileText, 
   DollarSign, Gamepad2, Check, Flame, Award, Lightbulb, Calendar, Edit3,
-  RefreshCw, TrendingUp as TrendUpIcon, Zap, Sparkles, WifiOff, Search, SlidersHorizontal,
-  FileBox, BoxSelect
+  RefreshCw, TrendingUp as TrendUpIcon, Zap, Sparkles, Search, SlidersHorizontal,
+  FileBox, Lock, Download, LogOut
 } from 'lucide-react';
 
 // --- UTILS & CUSTOM HOOKS ---
+
+const APP_NAME = 'MoneyCare';
+const STORAGE_KEY = 'moneycare-demo-state-v2';
+
+const categoryMeta = {
+  'Ăn uống': { icon: Coffee, bg: 'bg-amber-50', color: 'text-amber-600' },
+  'Di chuyển': { icon: Car, bg: 'bg-sky-50', color: 'text-sky-600' },
+  'Mua sắm': { icon: ShoppingBag, bg: 'bg-rose-50', color: 'text-rose-600' },
+  'Hóa đơn': { icon: FileText, bg: 'bg-indigo-50', color: 'text-indigo-600' },
+  'Giải trí': { icon: Gamepad2, bg: 'bg-violet-50', color: 'text-violet-600' },
+  'Lương': { icon: DollarSign, bg: 'bg-emerald-50', color: 'text-emerald-600' },
+  'Thưởng': { icon: Target, bg: 'bg-emerald-50', color: 'text-emerald-600' },
+  'Khác': { icon: MoreHorizontal, bg: 'bg-slate-100', color: 'text-slate-700' }
+};
+
+const getTransactionMeta = (transaction) => {
+  const fallback = transaction.type === 'income'
+    ? { icon: DollarSign, bg: 'bg-emerald-50', color: 'text-emerald-600' }
+    : { icon: Wallet, bg: 'bg-slate-100', color: 'text-slate-700' };
+  return categoryMeta[transaction.category] || fallback;
+};
+
+const TransactionIcon = ({ transaction, size = 18 }) => {
+  const meta = getTransactionMeta(transaction);
+  const Icon = meta.icon;
+  return <Icon size={size} />;
+};
+
+const normalizeGroups = (groups) => (Array.isArray(groups) ? groups : []).map(group => ({
+  ...group,
+  items: (group.items || []).map(item => {
+    const meta = getTransactionMeta(item);
+    return {
+      ...item,
+      bg: item.bg || meta.bg,
+      color: item.color || meta.color
+    };
+  })
+}));
+
+const flattenTransactions = (groups) => groups.flatMap(group =>
+  group.items.map(item => ({ ...item, groupDate: group.date }))
+);
+
+const downloadCsv = (transactions) => {
+  const headers = ['Ngay', 'Loai', 'Danh muc', 'Ten giao dich', 'Ghi chu', 'So tien'];
+  const rows = transactions.map(item => [
+    item.groupDate,
+    item.type === 'income' ? 'Thu nhap' : 'Chi tieu',
+    item.category,
+    item.merchant,
+    item.note || '',
+    item.amount
+  ]);
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replaceAll('"', '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'MoneyCare_giao_dich.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+};
 
 const useAnimatedNumber = (value, duration = 800) => {
   const [displayValue, setDisplayValue] = useState(0);
@@ -59,15 +124,6 @@ const SkeletonDashboard = () => (
   </div>
 );
 
-const OfflineBanner = () => (
-  <div className="absolute top-10 left-0 right-0 z-[100] flex justify-center animate-slide-down">
-    <div className="bg-slate-800/95 backdrop-blur-md px-4 py-2 rounded-full shadow-lg flex items-center gap-2 border border-slate-700">
-      <WifiOff size={14} className="text-amber-400" />
-      <span className="text-xs text-white font-medium tracking-wide">Đang ngoại tuyến. Dữ liệu sẽ đồng bộ sau.</span>
-    </div>
-  </div>
-);
-
 const EmptyState = ({ title, desc, icon }) => (
   <div className="flex flex-col items-center justify-center py-12 px-6 text-center animate-fade-in">
     <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-5 shadow-inner">
@@ -111,7 +167,7 @@ const QuickAdd = ({ onSave, onCancel }) => {
 
   const handleSave = () => {
     if (!rawAmount) return;
-    const selectedCat = categories.find(c => c.name === cat) || categories[0];
+    const meta = categoryMeta[cat] || getTransactionMeta({ type, category: cat });
     onSave({
       id: Date.now(),
       type,
@@ -119,9 +175,8 @@ const QuickAdd = ({ onSave, onCancel }) => {
       amount: parseInt(rawAmount),
       date: 'Vừa xong',
       merchant: note || (type === 'expense' ? 'Chi tiêu' : 'Thu nhập'),
-      icon: selectedCat.icon,
-      color: type === 'expense' ? 'text-slate-700' : 'text-emerald-600',
-      bg: type === 'expense' ? 'bg-slate-100' : 'bg-emerald-50'
+      color: meta.color,
+      bg: meta.bg
     });
   };
 
@@ -241,19 +296,19 @@ const QuickAdd = ({ onSave, onCancel }) => {
   );
 };
 
-const Dashboard = ({ stats, groupedTransactions, isBalanceVisible, setIsBalanceVisible, formatVND, isEmpty, isOffline }) => {
+const Dashboard = ({ stats, filteredGroups, filters, setFilters, isBalanceVisible, setIsBalanceVisible, formatVND, isEmpty }) => {
   const animatedBalance = useAnimatedNumber(stats.balance);
   const animatedIncome = useAnimatedNumber(stats.income);
   const animatedExpense = useAnimatedNumber(stats.expense);
+  const hasFilter = filters.search || filters.type !== 'all' || filters.category !== 'all';
+  const displayGroups = filteredGroups;
 
   return (
     <div className="animate-page-enter relative h-full overflow-y-auto no-scrollbar">
-      {isOffline && <OfflineBanner />}
-      
       <header className="px-6 pt-16 pb-6 flex justify-between items-center bg-slate-50/90 backdrop-blur-md sticky top-0 z-20">
         <div>
           <h3 className="text-[26px] font-extrabold text-slate-900 tracking-tight">Chào Minh Anh,</h3>
-          <p className="text-slate-500 text-[13px] font-bold mt-1">Thứ Sáu, 06 Tháng 6</p>
+          <p className="text-slate-500 text-[13px] font-bold mt-1">{APP_NAME} • Bảo mật bằng PIN</p>
         </div>
         <button className="relative w-[44px] h-[44px] bg-white rounded-full flex items-center justify-center text-slate-600 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-slate-100/50 hover:bg-slate-50 transition-colors active:scale-90 touch-manipulation">
           <Bell size={22} strokeWidth={2.2} />
@@ -312,7 +367,7 @@ const Dashboard = ({ stats, groupedTransactions, isBalanceVisible, setIsBalanceV
       {isEmpty ? (
         <EmptyState 
           title="Chưa có dữ liệu" 
-          desc="Hãy thêm giao dịch đầu tiên của bạn để MoneyCare có thể bắt đầu phân tích dòng tiền."
+          desc={`Hãy thêm giao dịch đầu tiên để ${APP_NAME} bắt đầu phân tích dòng tiền.`}
           icon={<FileBox size={40} className="text-slate-300" strokeWidth={1.5} />}
         />
       ) : (
@@ -356,16 +411,53 @@ const Dashboard = ({ stats, groupedTransactions, isBalanceVisible, setIsBalanceV
 
           {/* Grouped Transaction List (Real Product Feel with search) */}
           <div className="mt-8 px-6 animate-slide-up" style={{animationDelay: '0.3s'}}>
-            <div className="flex justify-between items-end mb-4 px-1">
+            <div className="flex justify-between items-end mb-3 px-1">
               <h4 className="text-[17px] font-bold text-slate-800 tracking-[0.02em]">Giao dịch gần đây</h4>
               <div className="flex items-center gap-3">
-                <button className="text-slate-400 hover:text-slate-800 transition-colors p-1"><Search size={18} /></button>
-                <button className="text-slate-400 hover:text-slate-800 transition-colors p-1"><SlidersHorizontal size={18} /></button>
+                <Search size={18} className="text-slate-400" />
+                <SlidersHorizontal size={18} className="text-slate-400" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[22px] p-3 border border-slate-100 shadow-sm mb-3 space-y-3">
+              <div className="flex items-center gap-2 bg-slate-50 rounded-2xl px-3 py-2.5">
+                <Search size={16} className="text-slate-400 shrink-0" />
+                <input
+                  value={filters.search}
+                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                  placeholder="Tìm theo tên, ghi chú..."
+                  className="w-full bg-transparent outline-none text-[13px] font-semibold text-slate-700 placeholder:text-slate-400"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={filters.type}
+                  onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}
+                  className="bg-slate-50 rounded-xl px-3 py-2 text-[12px] font-bold text-slate-700 outline-none"
+                >
+                  <option value="all">Tất cả loại</option>
+                  <option value="expense">Khoản chi</option>
+                  <option value="income">Khoản thu</option>
+                </select>
+                <select
+                  value={filters.category}
+                  onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
+                  className="bg-slate-50 rounded-xl px-3 py-2 text-[12px] font-bold text-slate-700 outline-none"
+                >
+                  <option value="all">Tất cả danh mục</option>
+                  {Object.keys(categoryMeta).map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
               </div>
             </div>
             
             <div className="bg-white rounded-[28px] p-2.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100">
-              {groupedTransactions.map((group, gIdx) => (
+              {displayGroups.length === 0 && (
+                <div className="py-10 text-center">
+                  <p className="text-[14px] font-bold text-slate-700">Không tìm thấy giao dịch</p>
+                  <p className="text-[12px] text-slate-500 mt-1">{hasFilter ? 'Thử đổi bộ lọc hoặc từ khóa.' : 'Hãy thêm giao dịch mới.'}</p>
+                </div>
+              )}
+              {displayGroups.map((group, gIdx) => (
                 <div key={group.date}>
                   <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-3.5 pt-3 pb-1">{group.date}</p>
                   
@@ -377,7 +469,7 @@ const Dashboard = ({ stats, groupedTransactions, isBalanceVisible, setIsBalanceV
                     >
                       <div className="flex items-center gap-4">
                         <div className={`w-[46px] h-[46px] rounded-[16px] flex items-center justify-center ${t.bg} ${t.color}`}>
-                          {t.icon}
+                          <TransactionIcon transaction={t} />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
@@ -392,7 +484,7 @@ const Dashboard = ({ stats, groupedTransactions, isBalanceVisible, setIsBalanceV
                       </p>
                     </div>
                   ))}
-                  {gIdx !== groupedTransactions.length - 1 && <div className="h-px w-auto mx-4 my-1 bg-slate-50"></div>}
+                  {gIdx !== displayGroups.length - 1 && <div className="h-px w-auto mx-4 my-1 bg-slate-50"></div>}
                 </div>
               ))}
             </div>
@@ -632,12 +724,205 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
   );
 };
 
-const Profile = () => (
+const AuthScreen = ({ onLogin }) => {
+  const [name, setName] = useState('Minh Anh');
+  const [pin, setPin] = useState('1234');
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    onLogin({ name: name || 'Minh Anh', email: 'minhanh@email.com' });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="h-full bg-slate-50 flex flex-col px-7 pt-20 pb-8 animate-page-enter">
+      <div className="w-16 h-16 bg-slate-900 rounded-[22px] flex items-center justify-center text-white shadow-xl mb-8">
+        <Lock size={28} />
+      </div>
+      <h1 className="text-[32px] font-black text-slate-900 tracking-tight leading-tight">{APP_NAME}</h1>
+      <p className="text-[14px] text-slate-500 font-semibold mt-2 leading-relaxed">Đăng nhập mẫu để bảo vệ dữ liệu tài chính cá nhân trong trình duyệt.</p>
+
+      <div className="mt-10 space-y-3">
+        <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Tên người dùng" />
+        <input value={pin} onChange={(e) => setPin(e.target.value)} type="password" inputMode="numeric" autoComplete="current-password" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Mã PIN" />
+      </div>
+
+      <button
+        type="submit"
+        className="mt-auto w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all"
+      >
+        Đăng nhập
+      </button>
+    </form>
+  );
+};
+
+const Onboarding = ({ onDone }) => (
+  <div className="h-full bg-white flex flex-col px-7 pt-16 pb-8 animate-page-enter">
+    <div className="grid grid-cols-3 gap-3 mb-8">
+      {[Wallet, Target, BarChart3].map((Icon, index) => (
+        <div key={index} className="h-24 bg-slate-50 rounded-[24px] flex items-center justify-center text-slate-800 border border-slate-100">
+          <Icon size={28} />
+        </div>
+      ))}
+    </div>
+    <h2 className="text-[30px] font-black text-slate-900 tracking-tight leading-tight">Quản lý chi tiêu trong 3 thao tác</h2>
+    <div className="mt-8 space-y-4">
+      {[
+        ['Thêm nhanh', 'Nhập số tiền, chọn danh mục và lưu ngay.'],
+        ['Theo dõi ngân sách', 'Xem ví, mục tiêu và cảnh báo vượt hạn mức.'],
+        ['Xuất dữ liệu', 'Tải file CSV có thể mở bằng Excel.']
+      ].map(([title, desc], index) => (
+        <div key={title} className="flex gap-4">
+          <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-[13px] font-black shrink-0">{index + 1}</div>
+          <div>
+            <p className="text-[15px] font-extrabold text-slate-900">{title}</p>
+            <p className="text-[13px] text-slate-500 font-medium mt-0.5 leading-relaxed">{desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+    <button onClick={onDone} className="mt-auto w-full bg-emerald-500 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(16,185,129,0.22)] active:scale-95 transition-all">
+      Bắt đầu sử dụng
+    </button>
+  </div>
+);
+
+const FinanceTools = ({ section, setSection, wallets, setWallets, budgets, setBudgets, goals, setGoals, transactions, onExport, formatVND }) => {
+  const [walletName, setWalletName] = useState('');
+  const [walletAmount, setWalletAmount] = useState('');
+  const [budgetCategory, setBudgetCategory] = useState('Ăn uống');
+  const [budgetLimit, setBudgetLimit] = useState('');
+  const [goalName, setGoalName] = useState('');
+  const [goalTarget, setGoalTarget] = useState('');
+
+  const spentByCategory = useMemo(() => {
+    return transactions.reduce((acc, item) => {
+      if (item.type === 'expense') acc[item.category] = (acc[item.category] || 0) + item.amount;
+      return acc;
+    }, {});
+  }, [transactions]);
+
+  const addWallet = () => {
+    if (!walletName || !walletAmount) return;
+    setWallets(prev => [...prev, { id: Date.now(), name: walletName, balance: Number(walletAmount) }]);
+    setWalletName('');
+    setWalletAmount('');
+  };
+
+  const addBudget = () => {
+    if (!budgetLimit) return;
+    setBudgets(prev => [...prev, { id: Date.now(), category: budgetCategory, limit: Number(budgetLimit) }]);
+    setBudgetLimit('');
+  };
+
+  const addGoal = () => {
+    if (!goalName || !goalTarget) return;
+    setGoals(prev => [...prev, { id: Date.now(), name: goalName, target: Number(goalTarget), current: 0 }]);
+    setGoalName('');
+    setGoalTarget('');
+  };
+
+  return (
+    <div className="animate-page-enter relative h-full overflow-y-auto no-scrollbar pt-14 px-6">
+      <button onClick={() => setSection(null)} className="mb-5 w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-600 shadow-sm active:scale-90">
+        <X size={20} />
+      </button>
+      <h2 className="text-[28px] font-black text-slate-900 tracking-tight">Quản lý tài chính</h2>
+      <p className="text-[13px] text-slate-500 font-semibold mt-1">Dữ liệu được lưu cục bộ trên trình duyệt.</p>
+
+      <div className="flex gap-2 mt-5 overflow-x-auto no-scrollbar pb-2">
+        {[
+          ['wallets', 'Ví'],
+          ['budgets', 'Ngân sách'],
+          ['goals', 'Mục tiêu'],
+          ['export', 'Xuất file']
+        ].map(([key, label]) => (
+          <button key={key} onClick={() => setSection(key)} className={`px-4 py-2 rounded-full text-[12px] font-extrabold whitespace-nowrap ${section === key ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-100'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {section === 'wallets' && (
+        <div className="mt-5 space-y-3">
+          {wallets.map(wallet => (
+            <div key={wallet.id} className="bg-white border border-slate-100 rounded-[22px] p-4 flex justify-between items-center shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center"><Wallet size={20} /></div>
+                <div><p className="text-[15px] font-extrabold text-slate-900">{wallet.name}</p><p className="text-[12px] text-slate-500 font-semibold">Số dư ví</p></div>
+              </div>
+              <p className="text-[14px] font-black text-slate-900">{formatVND(wallet.balance)}</p>
+            </div>
+          ))}
+          <div className="bg-slate-50 border border-slate-100 rounded-[22px] p-3 grid grid-cols-2 gap-2">
+            <input value={walletName} onChange={(e) => setWalletName(e.target.value)} placeholder="Tên ví" className="bg-white rounded-xl px-3 py-2 text-[13px] font-bold outline-none" />
+            <input value={walletAmount} onChange={(e) => setWalletAmount(e.target.value)} placeholder="Số dư" inputMode="numeric" className="bg-white rounded-xl px-3 py-2 text-[13px] font-bold outline-none" />
+            <button onClick={addWallet} className="col-span-2 bg-slate-900 text-white rounded-xl py-2.5 text-[13px] font-extrabold">Thêm ví</button>
+          </div>
+        </div>
+      )}
+
+      {section === 'budgets' && (
+        <div className="mt-5 space-y-3">
+          {budgets.map(budget => {
+            const spent = spentByCategory[budget.category] || 0;
+            const pct = Math.min((spent / budget.limit) * 100, 100);
+            return (
+              <div key={budget.id} className="bg-white border border-slate-100 rounded-[22px] p-4 shadow-sm">
+                <div className="flex justify-between mb-3"><p className="text-[15px] font-extrabold text-slate-900">{budget.category}</p><p className="text-[12px] font-bold text-slate-500">{formatVND(spent)} / {formatVND(budget.limit)}</p></div>
+                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${pct > 85 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }}></div></div>
+              </div>
+            );
+          })}
+          <div className="bg-slate-50 border border-slate-100 rounded-[22px] p-3 grid grid-cols-2 gap-2">
+            <select value={budgetCategory} onChange={(e) => setBudgetCategory(e.target.value)} className="bg-white rounded-xl px-3 py-2 text-[13px] font-bold outline-none">
+              {Object.keys(categoryMeta).map(name => <option key={name}>{name}</option>)}
+            </select>
+            <input value={budgetLimit} onChange={(e) => setBudgetLimit(e.target.value)} placeholder="Hạn mức" inputMode="numeric" className="bg-white rounded-xl px-3 py-2 text-[13px] font-bold outline-none" />
+            <button onClick={addBudget} className="col-span-2 bg-slate-900 text-white rounded-xl py-2.5 text-[13px] font-extrabold">Thêm ngân sách</button>
+          </div>
+        </div>
+      )}
+
+      {section === 'goals' && (
+        <div className="mt-5 space-y-3">
+          {goals.map(goal => {
+            const pct = Math.min((goal.current / goal.target) * 100, 100);
+            return (
+              <div key={goal.id} className="bg-white border border-slate-100 rounded-[22px] p-4 shadow-sm">
+                <div className="flex justify-between mb-3"><p className="text-[15px] font-extrabold text-slate-900">{goal.name}</p><p className="text-[12px] font-bold text-slate-500">{Math.round(pct)}%</p></div>
+                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }}></div></div>
+                <p className="text-[12px] text-slate-500 font-semibold mt-2">{formatVND(goal.current)} / {formatVND(goal.target)}</p>
+              </div>
+            );
+          })}
+          <div className="bg-slate-50 border border-slate-100 rounded-[22px] p-3 grid grid-cols-2 gap-2">
+            <input value={goalName} onChange={(e) => setGoalName(e.target.value)} placeholder="Tên mục tiêu" className="bg-white rounded-xl px-3 py-2 text-[13px] font-bold outline-none" />
+            <input value={goalTarget} onChange={(e) => setGoalTarget(e.target.value)} placeholder="Số tiền" inputMode="numeric" className="bg-white rounded-xl px-3 py-2 text-[13px] font-bold outline-none" />
+            <button onClick={addGoal} className="col-span-2 bg-slate-900 text-white rounded-xl py-2.5 text-[13px] font-extrabold">Thêm mục tiêu</button>
+          </div>
+        </div>
+      )}
+
+      {section === 'export' && (
+        <div className="mt-5 bg-white border border-slate-100 rounded-[26px] p-5 shadow-sm">
+          <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-[20px] flex items-center justify-center mb-4"><Download size={24} /></div>
+          <p className="text-[18px] font-black text-slate-900">Xuất dữ liệu Excel</p>
+          <p className="text-[13px] text-slate-500 font-medium mt-2 leading-relaxed">Tải file CSV chứa toàn bộ giao dịch hiện có. File này mở được bằng Excel hoặc Google Sheets.</p>
+          <button onClick={onExport} className="mt-5 w-full bg-emerald-500 text-white rounded-[18px] py-3 text-[13px] font-extrabold active:scale-95 transition-all">Tải CSV</button>
+        </div>
+      )}
+
+      <div className="h-[120px]"></div>
+    </div>
+  );
+};
+
+const Profile = ({ user, onOpenSection, onExport, onLogout }) => (
   <div className="animate-page-enter relative h-full overflow-y-auto no-scrollbar pt-16">
     <div className="px-6 flex items-center gap-5 mb-8">
       <div className="relative">
         <div className="w-[84px] h-[84px] rounded-[28px] bg-slate-900 flex items-center justify-center text-3xl font-extrabold text-white shadow-[0_8px_20px_rgba(15,23,42,0.2)]">
-          MA
+          {(user?.name || 'Minh Anh').split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase()}
         </div>
         <div className="absolute -bottom-2 -right-2 bg-white p-1 rounded-xl shadow-sm border border-slate-50">
           <div className="bg-amber-100 text-amber-500 p-1.5 rounded-lg">
@@ -646,8 +931,8 @@ const Profile = () => (
         </div>
       </div>
       <div>
-        <h2 className="text-[26px] font-extrabold text-slate-900 tracking-tight">Minh Anh</h2>
-        <p className="text-slate-500 text-[13px] font-semibold mt-0.5">minhanh@email.com</p>
+        <h2 className="text-[26px] font-extrabold text-slate-900 tracking-tight">{user?.name || 'Minh Anh'}</h2>
+        <p className="text-slate-500 text-[13px] font-semibold mt-0.5">{user?.email || 'minhanh@email.com'}</p>
         <div className="mt-2.5 inline-flex items-center gap-1.5 bg-emerald-50/80 border border-emerald-100/50 text-emerald-600 px-3 py-1 rounded-lg">
           <Award size={14} strokeWidth={2.5}/>
           <span className="text-[10px] font-extrabold uppercase tracking-wider">Level 4 Saver</span>
@@ -671,17 +956,18 @@ const Profile = () => (
     <div className="w-full px-6 space-y-2">
       <p className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest pl-2 mb-3 mt-6">Tài khoản</p>
       {[
-        { icon: <Wallet size={20}/>, label: 'Quản lý Ví' },
-        { icon: <Target size={20}/>, label: 'Mục tiêu & Ngân sách' },
-        { icon: <History size={20}/>, label: 'Xuất dữ liệu Excel' },
+        { icon: <Wallet size={20}/>, label: 'Quản lý Ví', action: () => onOpenSection('wallets') },
+        { icon: <Target size={20}/>, label: 'Mục tiêu & Ngân sách', action: () => onOpenSection('budgets') },
+        { icon: <History size={20}/>, label: 'Xuất dữ liệu Excel', action: onExport },
+        { icon: <LogOut size={20}/>, label: 'Đăng xuất', action: onLogout },
       ].map((item, i) => (
-        <div key={i} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-[20px] hover:border-slate-200 hover:shadow-sm active:scale-95 transition-all cursor-pointer group">
+        <button key={i} onClick={item.action} className="w-full flex items-center justify-between p-4 bg-white border border-slate-100 rounded-[20px] hover:border-slate-200 hover:shadow-sm active:scale-95 transition-all cursor-pointer group text-left">
           <div className="flex items-center gap-4">
             <div className="text-slate-400 group-hover:text-slate-800 transition-colors">{item.icon}</div>
             <span className="text-[15px] font-bold text-slate-800">{item.label}</span>
           </div>
           <ChevronRight className="text-slate-400 group-hover:translate-x-1 transition-transform" size={18} />
-        </div>
+        </button>
       ))}
     </div>
 
@@ -693,8 +979,8 @@ const Profile = () => (
 
 export default function App() {
   const [appState, setAppState] = useState('loading'); 
-  const [demoMode, setDemoMode] = useState('normal'); // normal | empty | offline
   const [tab, setTab] = useState('dashboard');
+  const [section, setSection] = useState(null);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
   const [toast, setToast] = useState(null);
 
@@ -721,16 +1007,51 @@ export default function App() {
     }
   ];
 
-  const [groupedTransactions, setGroupedTransactions] = useState(defaultTransactions);
+  const defaultWallets = [
+    { id: 1, name: 'Ví chính', balance: 23940000 },
+    { id: 2, name: 'Tiết kiệm', balance: 8000000 }
+  ];
 
-  // Effect to handle Demo Mode changes
-  useEffect(() => {
-    if (demoMode === 'empty') {
-      setGroupedTransactions([]);
-    } else {
-      setGroupedTransactions(defaultTransactions);
+  const defaultBudgets = [
+    { id: 1, category: 'Ăn uống', limit: 2500000 },
+    { id: 2, category: 'Mua sắm', limit: 1800000 }
+  ];
+
+  const defaultGoals = [
+    { id: 1, name: 'Quỹ du lịch Đà Nẵng', target: 12000000, current: 5200000 },
+    { id: 2, name: 'Laptop mới', target: 22000000, current: 9000000 }
+  ];
+
+  const storedState = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    } catch {
+      return {};
     }
-  }, [demoMode]);
+  }, []);
+
+  const [user, setUser] = useState(storedState.user || null);
+  const [onboardingSeen, setOnboardingSeen] = useState(Boolean(storedState.onboardingSeen));
+  const [groupedTransactions, setGroupedTransactions] = useState(normalizeGroups(storedState.groupedTransactions || defaultTransactions));
+  const [wallets, setWallets] = useState(storedState.wallets || defaultWallets);
+  const [budgets, setBudgets] = useState(storedState.budgets || defaultBudgets);
+  const [goals, setGoals] = useState(storedState.goals || defaultGoals);
+  const [filters, setFilters] = useState({ search: '', type: 'all', category: 'all' });
+
+  useEffect(() => {
+    const cleanGroups = groupedTransactions.map(group => ({
+      date: group.date,
+      items: group.items.map(({ icon, ...item }) => item)
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      user,
+      onboardingSeen,
+      groupedTransactions: cleanGroups,
+      wallets,
+      budgets,
+      goals
+    }));
+  }, [user, onboardingSeen, groupedTransactions, wallets, budgets, goals]);
 
   const stats = useMemo(() => {
     let income = 0;
@@ -746,6 +1067,29 @@ export default function App() {
 
   const formatVND = (val) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 
+  const filteredGroups = useMemo(() => {
+    const query = filters.search.trim().toLowerCase();
+    return groupedTransactions
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => {
+          const text = `${item.merchant} ${item.category} ${item.note || ''}`.toLowerCase();
+          const matchesSearch = !query || text.includes(query);
+          const matchesType = filters.type === 'all' || item.type === filters.type;
+          const matchesCategory = filters.category === 'all' || item.category === filters.category;
+          return matchesSearch && matchesType && matchesCategory;
+        })
+      }))
+      .filter(group => group.items.length > 0);
+  }, [groupedTransactions, filters]);
+
+  const allTransactions = useMemo(() => flattenTransactions(groupedTransactions), [groupedTransactions]);
+
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleSaveTransaction = (newT) => {
     const newGrouped = [...groupedTransactions];
     if (newGrouped.length > 0 && newGrouped[0].date === 'Hôm nay') {
@@ -755,16 +1099,45 @@ export default function App() {
     }
     setGroupedTransactions(newGrouped);
     
-    // Auto switch off empty mode if user adds data
-    if (demoMode === 'empty') setDemoMode('normal');
-
-    setToast("Đã lưu giao dịch!");
-    setTimeout(() => setToast(null), 3000);
+    showToast("Đã lưu giao dịch!");
     setTab('dashboard');
   };
 
+  const handleExport = () => {
+    downloadCsv(allTransactions);
+    showToast('Đã xuất file CSV!');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    showToast('Đã đăng xuất!');
+  };
+
   const isEmpty = groupedTransactions.length === 0;
-  const isOffline = demoMode === 'offline';
+
+  if (appState !== 'loading' && !user) {
+    return (
+      <div className="h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2">
+        <div className="relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3">
+          <div className="absolute inset-[11px] bg-slate-50 rounded-[38px] overflow-hidden flex flex-col ring-1 ring-black/5">
+            <AuthScreen onLogin={(nextUser) => { setUser(nextUser); showToast('Đăng nhập thành công!'); }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (appState !== 'loading' && user && !onboardingSeen) {
+    return (
+      <div className="h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2">
+        <div className="relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3">
+          <div className="absolute inset-[11px] bg-slate-50 rounded-[38px] overflow-hidden flex flex-col ring-1 ring-black/5">
+            <Onboarding onDone={() => { setOnboardingSeen(true); showToast('Sẵn sàng quản lý chi tiêu!'); }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2">
@@ -778,13 +1151,6 @@ export default function App() {
           <span className="text-[13px] font-bold tracking-wide">{toast}</span>
         </div>
       )}
-
-      {/* DEV TOOLS (Portfolio Presentation Controls) */}
-      <div className="fixed bottom-4 right-4 z-[200] bg-white/90 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-slate-200 flex gap-2">
-        <button onClick={() => setDemoMode('normal')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${demoMode === 'normal' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>Normal</button>
-        <button onClick={() => setDemoMode('empty')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${demoMode === 'empty' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>Empty State</button>
-        <button onClick={() => setDemoMode('offline')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${demoMode === 'offline' ? 'bg-rose-500 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>Offline</button>
-      </div>
 
       {/* REAL DEVICE MOCKUP */}
       <div className="relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3">
@@ -806,16 +1172,17 @@ export default function App() {
               <SkeletonDashboard />
             ) : (
               <>
-                {tab === 'dashboard' && <Dashboard stats={stats} groupedTransactions={groupedTransactions} isBalanceVisible={isBalanceVisible} setIsBalanceVisible={setIsBalanceVisible} formatVND={formatVND} isEmpty={isEmpty} isOffline={isOffline} />}
+                {section && <FinanceTools section={section} setSection={setSection} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} goals={goals} setGoals={setGoals} transactions={allTransactions} onExport={handleExport} formatVND={formatVND} />}
+                {!section && tab === 'dashboard' && <Dashboard stats={stats} filteredGroups={filteredGroups} filters={filters} setFilters={setFilters} isBalanceVisible={isBalanceVisible} setIsBalanceVisible={setIsBalanceVisible} formatVND={formatVND} isEmpty={isEmpty} />}
                 {tab === 'quickadd' && <QuickAdd onSave={handleSaveTransaction} onCancel={() => setTab('dashboard')} />}
-                {tab === 'analytics' && <Analytics stats={stats} formatVND={formatVND} isEmpty={isEmpty} />}
-                {tab === 'profile' && <Profile />}
+                {!section && tab === 'analytics' && <Analytics stats={stats} formatVND={formatVND} isEmpty={isEmpty} />}
+                {!section && tab === 'profile' && <Profile user={user} onOpenSection={setSection} onExport={handleExport} onLogout={handleLogout} />}
               </>
             )}
           </div>
 
           {/* Refined Elegant Nav Bar */}
-          {(tab !== 'quickadd' && appState !== 'loading') && (
+          {(tab !== 'quickadd' && appState !== 'loading' && !section) && (
             <div className="absolute bottom-6 left-5 right-5 z-40">
               <nav className="w-full bg-white/95 backdrop-blur-xl rounded-[32px] px-6 py-2.5 flex justify-between items-center shadow-[0_15px_40px_-10px_rgba(0,0,0,0.1)] border border-slate-100">
                 <button onClick={() => setTab('dashboard')} className={`p-2 transition-all duration-300 touch-manipulation ${tab === 'dashboard' ? 'text-slate-900 scale-110' : 'text-slate-400 hover:text-slate-600'}`}>
@@ -839,7 +1206,7 @@ export default function App() {
                   <Settings size={24} fill={tab === 'profile' ? 'currentColor' : 'none'} />
                 </button>
 
-                <button className="p-2 text-slate-400 hover:text-slate-600 transition-colors touch-manipulation">
+                <button onClick={() => setSection('export')} className="p-2 text-slate-400 hover:text-slate-600 transition-colors touch-manipulation">
                   <MoreHorizontal size={24} />
                 </button>
               </nav>
