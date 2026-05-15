@@ -521,12 +521,12 @@ const Dashboard = ({ stats, filteredGroups, filters, setFilters, isBalanceVisibl
         </>
       )}
 
-      <div className="h-[170px] w-full shrink-0"></div>
+      <div className="h-[220px] w-full shrink-0"></div>
     </div>
   );
 };
 
-const Analytics = ({ stats, formatVND, isEmpty }) => {
+const Analytics = ({ stats, formatVND, isEmpty, onFilterCategory }) => {
   const [activeLineIndex, setActiveLineIndex] = useState(3);
   const [activeDonutSlice, setActiveDonutSlice] = useState(null); 
 
@@ -769,6 +769,14 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
               })}
             </div>
           </div>
+          {activeDonutSlice && !isEmpty && (
+            <button
+              onClick={() => onFilterCategory(activeDonutSlice)}
+              className="mt-5 w-full bg-slate-900 text-white rounded-[18px] py-3 text-[13px] font-extrabold active:scale-95 transition-all"
+            >
+              Xem giao dịch {activeDonutSlice}
+            </button>
+          )}
         </div>
       </div>
 
@@ -798,13 +806,13 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
         </div>
       )}
 
-      <div className="h-[170px] w-full shrink-0"></div>
+      <div className="h-[220px] w-full shrink-0"></div>
     </div>
   );
 };
 
 const AuthFlow = ({ account, onComplete }) => {
-  const [screen, setScreen] = useState('welcome');
+  const [screen, setScreen] = useState(account ? 'login' : 'welcome');
   const [name, setName] = useState(account?.name || '');
   const [email, setEmail] = useState(account?.email || '');
   const [pin, setPin] = useState('');
@@ -969,6 +977,12 @@ const AuthFlow = ({ account, onComplete }) => {
           <button type="button" onClick={() => go('recover')} className="w-full text-slate-500 rounded-[18px] py-2.5 text-[13px] font-bold">
             Quên PIN?
           </button>
+          <div className="pt-2 text-center">
+            <span className="text-[13px] font-semibold text-slate-500">Người dùng mới? </span>
+            <button type="button" onClick={() => go('register')} className="text-[13px] font-extrabold text-emerald-600">
+              Tạo tài khoản
+            </button>
+          </div>
         </form>
       </AuthShell>
     );
@@ -1143,7 +1157,7 @@ const FinanceTools = ({ section, setSection, wallets, setWallets, budgets, setBu
   );
 };
 
-const Profile = ({ user, wallets, goals, stats, onOpenSection, onExport, onLogout }) => {
+const Profile = ({ user, wallets, goals, stats, onOpenSection, onExport, onLogout, onUtilityAction }) => {
   const primaryGoal = goals?.[0];
   const totalWalletBalance = (wallets || []).reduce((sum, wallet) => sum + wallet.balance, 0);
   const goalProgress = primaryGoal ? Math.min((primaryGoal.current / primaryGoal.target) * 100, 100) : 0;
@@ -1224,6 +1238,11 @@ const Profile = ({ user, wallets, goals, stats, onOpenSection, onExport, onLogou
         { icon: <Target size={20}/>, label: 'Mục tiêu & Ngân sách', action: () => onOpenSection('budgets') },
         { icon: <History size={20}/>, label: 'Xuất dữ liệu Excel', action: onExport },
         { icon: <FileText size={20}/>, label: 'Lịch sử xuất dữ liệu', action: () => onOpenSection('export') },
+        { icon: <DollarSign size={20}/>, label: 'Tiền tệ: VND', action: () => onUtilityAction('Đơn vị tiền tệ hiện là VND') },
+        { icon: <Bell size={20}/>, label: 'Thông báo nhắc hóa đơn', action: () => onUtilityAction('Đã bật nhắc hóa đơn mẫu') },
+        { icon: <ShieldCheck size={20}/>, label: 'Face ID & PIN', action: () => onUtilityAction('Face ID/PIN đang được mô phỏng') },
+        { icon: <RefreshCw size={20}/>, label: 'Giao dịch định kỳ', action: () => onUtilityAction('Đã mở thiết lập giao dịch định kỳ mẫu') },
+        { icon: <Download size={20}/>, label: 'Sao lưu cục bộ', action: () => onUtilityAction('Dữ liệu đang được lưu trong localStorage') },
         { icon: <LogOut size={20}/>, label: 'Đăng xuất', action: onLogout },
       ].map((item, i) => (
         <button key={i} onClick={item.action} className="w-full flex items-center justify-between p-4 bg-white border border-slate-100 rounded-[20px] hover:border-slate-200 hover:shadow-sm active:scale-95 transition-all cursor-pointer group text-left">
@@ -1236,7 +1255,7 @@ const Profile = ({ user, wallets, goals, stats, onOpenSection, onExport, onLogou
       ))}
     </div>
 
-    <div className="h-[170px] w-full shrink-0"></div>
+    <div className="h-[220px] w-full shrink-0"></div>
   </div>
   );
 };
@@ -1391,6 +1410,11 @@ export default function App() {
     showToast('Đã đăng xuất!');
   };
 
+  const handleFilterCategory = (category) => {
+    setFilters({ search: '', type: 'all', category });
+    setTab('dashboard');
+  };
+
   const isEmpty = groupedTransactions.length === 0;
 
   if (appState !== 'loading' && !user) {
@@ -1441,8 +1465,8 @@ export default function App() {
                 {section && <FinanceTools section={section} setSection={setSection} wallets={wallets} setWallets={setWallets} budgets={budgets} setBudgets={setBudgets} goals={goals} setGoals={setGoals} transactions={allTransactions} onExport={handleExport} formatVND={formatVND} />}
                 {!section && tab === 'dashboard' && <Dashboard stats={stats} filteredGroups={filteredGroups} filters={filters} setFilters={setFilters} isBalanceVisible={isBalanceVisible} setIsBalanceVisible={setIsBalanceVisible} formatVND={formatVND} isEmpty={isEmpty} />}
                 {tab === 'quickadd' && <QuickAdd onSave={handleSaveTransaction} onCancel={() => setTab('dashboard')} />}
-                {!section && tab === 'analytics' && <Analytics stats={stats} formatVND={formatVND} isEmpty={isEmpty} />}
-                {!section && tab === 'profile' && <Profile user={user} wallets={wallets} goals={goals} stats={stats} onOpenSection={setSection} onExport={handleExport} onLogout={handleLogout} />}
+                {!section && tab === 'analytics' && <Analytics stats={stats} formatVND={formatVND} isEmpty={isEmpty} onFilterCategory={handleFilterCategory} />}
+                {!section && tab === 'profile' && <Profile user={user} wallets={wallets} goals={goals} stats={stats} onOpenSection={setSection} onExport={handleExport} onLogout={handleLogout} onUtilityAction={showToast} />}
               </>
             )}
           </div>
