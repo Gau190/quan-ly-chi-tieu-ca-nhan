@@ -803,67 +803,214 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
   );
 };
 
-const AuthScreen = ({ onLogin }) => {
-  const [name, setName] = useState('Minh Anh');
-  const [pin, setPin] = useState('1234');
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    onLogin({ name: name || 'Minh Anh', email: 'minhanh@email.com' });
+const AuthFlow = ({ account, onComplete }) => {
+  const [screen, setScreen] = useState('welcome');
+  const [name, setName] = useState(account?.name || '');
+  const [email, setEmail] = useState(account?.email || '');
+  const [pin, setPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [monthlyIncome, setMonthlyIncome] = useState('25000000');
+  const [walletBalance, setWalletBalance] = useState('5000000');
+  const [goalName, setGoalName] = useState('Quỹ du lịch Đà Nẵng');
+  const [goalTarget, setGoalTarget] = useState('12000000');
+  const [pendingAccount, setPendingAccount] = useState(null);
+  const [error, setError] = useState('');
+
+  const validateEmail = (value) => /\S+@\S+\.\S+/.test(value);
+  const validatePin = (value) => /^\d{4}$/.test(value);
+
+  const go = (nextScreen) => {
+    setError('');
+    setScreen(nextScreen);
   };
 
+  const handleRegister = (event) => {
+    event.preventDefault();
+    if (name.trim().length < 2) return setError('Vui lòng nhập tên của bạn.');
+    if (!validateEmail(email)) return setError('Email chưa đúng định dạng.');
+    if (!validatePin(pin)) return setError('PIN cần gồm đúng 4 số.');
+    setPendingAccount({ name: name.trim(), email: email.trim(), pin });
+    go('setup');
+  };
+
+  const handleLogin = (event) => {
+    event.preventDefault();
+    if (!account) return setError('Chưa có tài khoản trên thiết bị này. Hãy đăng ký hoặc xem demo.');
+    if (!validatePin(pin)) return setError('Nhập PIN 4 số để đăng nhập.');
+    if (pin !== account.pin) return setError('PIN không đúng. Bạn có thể đặt lại PIN bên dưới.');
+    onComplete({ user: account, account, onboardingSeen: true });
+  };
+
+  const handleRecover = (event) => {
+    event.preventDefault();
+    if (!account) return setError('Chưa có tài khoản để khôi phục.');
+    if (email.trim().toLowerCase() !== account.email.toLowerCase()) return setError('Email khôi phục không trùng với tài khoản.');
+    if (!validatePin(newPin)) return setError('PIN mới cần gồm đúng 4 số.');
+    const recovered = { ...account, pin: newPin };
+    onComplete({ user: recovered, account: recovered, onboardingSeen: true });
+  };
+
+  const handleSetup = (event) => {
+    event.preventDefault();
+    const nextAccount = pendingAccount || { name: name || 'Minh Anh', email: email || 'minhanh@email.com', pin: pin || '1234' };
+    const income = Number(monthlyIncome) || 0;
+    const balance = Number(walletBalance) || 0;
+    const target = Number(goalTarget) || 0;
+
+    onComplete({
+      user: nextAccount,
+      account: nextAccount,
+      onboardingSeen: true,
+      wallets: [{ id: Date.now(), name: 'Ví chính', balance }],
+      goals: [{ id: Date.now() + 1, name: goalName || 'Mục tiêu tiết kiệm', target: target || 10000000, current: Math.min(balance, target || balance) }],
+      groupedTransactions: [
+        {
+          date: 'Hôm nay',
+          items: [
+            { id: Date.now() + 2, type: 'income', merchant: 'Thu nhập tháng', category: 'Lương', amount: income, note: 'Thiết lập ban đầu', bg: 'bg-emerald-50', color: 'text-emerald-600' }
+          ]
+        }
+      ]
+    });
+  };
+
+  const startDemo = () => {
+    const demoAccount = { name: 'Minh Anh', email: 'demo@moneycare.app', pin: '1234', isDemo: true };
+    onComplete({ user: demoAccount, account: demoAccount, onboardingSeen: true, demo: true });
+  };
+
+  const AuthShell = ({ children }) => (
+    <div className="h-full bg-slate-50 flex flex-col px-7 pt-14 pb-7 animate-page-enter overflow-y-auto no-scrollbar">
+      {screen !== 'welcome' && (
+        <button onClick={() => go('welcome')} className="mb-5 w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-600 shadow-sm active:scale-90">
+          <X size={19} />
+        </button>
+      )}
+      {children}
+    </div>
+  );
+
+  const TrustStrip = () => (
+    <div className="grid grid-cols-3 gap-2 mt-6">
+      {[
+        [Lock, 'PIN 4 số'],
+        [ShieldCheck, 'Cục bộ'],
+        [EyeOff, 'Ẩn số dư']
+      ].map(([Icon, label]) => (
+        <div key={label} className="bg-white border border-slate-100 rounded-2xl p-3 text-center shadow-sm">
+          <Icon size={18} className="mx-auto text-slate-700" />
+          <p className="text-[10px] font-bold text-slate-500 mt-2">{label}</p>
+        </div>
+      ))}
+    </div>
+  );
+
+  if (screen === 'welcome') {
+    return (
+      <AuthShell>
+        <div className="w-16 h-16 bg-slate-900 rounded-[22px] flex items-center justify-center text-white shadow-xl mb-7">
+          <Wallet size={30} />
+        </div>
+        <p className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.24em] mb-3">Personal finance</p>
+        <h1 className="text-[34px] font-black text-slate-900 tracking-tight leading-[1.05]">{APP_NAME}</h1>
+        <p className="text-[15px] text-slate-500 font-medium mt-3 leading-relaxed">Quản lý tiền dễ hơn mỗi ngày với ví, ngân sách, mục tiêu và insight tài chính nhẹ nhàng.</p>
+        <TrustStrip />
+        <div className="mt-auto space-y-3 pt-10">
+          <button onClick={() => go('register')} className="w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all">
+            Bắt đầu miễn phí
+          </button>
+          <button onClick={() => go('login')} className="w-full bg-white text-slate-800 border border-slate-100 rounded-[24px] py-4 text-[15px] font-extrabold active:scale-95 transition-all">
+            Tôi đã có tài khoản
+          </button>
+          <button onClick={startDemo} className="w-full text-emerald-600 rounded-[20px] py-2.5 text-[13px] font-extrabold active:scale-95 transition-all">
+            Trải nghiệm demo
+          </button>
+        </div>
+      </AuthShell>
+    );
+  }
+
+  if (screen === 'register') {
+    return (
+      <AuthShell>
+        <h2 className="text-[30px] font-black text-slate-900 tracking-tight">Tạo tài khoản</h2>
+        <p className="text-[14px] text-slate-500 font-medium mt-2 leading-relaxed">Chỉ cần tên, email và PIN 4 số. Dữ liệu prototype được lưu trên trình duyệt.</p>
+        <form onSubmit={handleRegister} className="mt-7 space-y-3">
+          <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Tên của bạn" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Email" />
+          <input value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} type="password" inputMode="numeric" autoComplete="new-password" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300 tracking-[0.4em]" placeholder="PIN 4 số" />
+          {error && <p className="text-[12px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl">{error}</p>}
+          <button type="submit" className="w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all">
+            Tiếp tục
+          </button>
+        </form>
+      </AuthShell>
+    );
+  }
+
+  if (screen === 'login') {
+    return (
+      <AuthShell>
+        <div className="w-14 h-14 rounded-[20px] bg-slate-900 text-white flex items-center justify-center mb-6">
+          <Lock size={26} />
+        </div>
+        <h2 className="text-[30px] font-black text-slate-900 tracking-tight">Mở khóa {APP_NAME}</h2>
+        <p className="text-[14px] text-slate-500 font-medium mt-2 leading-relaxed">{account ? `Đăng nhập bằng PIN của ${account.email}.` : 'Chưa có tài khoản trên thiết bị này.'}</p>
+        <form onSubmit={handleLogin} className="mt-7 space-y-3">
+          <input value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} type="password" inputMode="numeric" autoComplete="current-password" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-center text-[26px] font-black outline-none focus:border-slate-300 tracking-[0.55em]" placeholder="••••" />
+          <button type="button" onClick={() => account ? onComplete({ user: account, account, onboardingSeen: true }) : setError('Hãy tạo tài khoản trước khi dùng Face ID.')} className="w-full bg-white border border-slate-100 text-slate-700 rounded-[20px] py-3 text-[13px] font-extrabold flex items-center justify-center gap-2 active:scale-95 transition-all">
+            <ShieldCheck size={17} />
+            Face ID khả dụng
+          </button>
+          {error && <p className="text-[12px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl">{error}</p>}
+          <button type="submit" className="w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all">
+            Đăng nhập
+          </button>
+          <button type="button" onClick={() => go('recover')} className="w-full text-slate-500 rounded-[18px] py-2.5 text-[13px] font-bold">
+            Quên PIN?
+          </button>
+        </form>
+      </AuthShell>
+    );
+  }
+
+  if (screen === 'recover') {
+    return (
+      <AuthShell>
+        <h2 className="text-[30px] font-black text-slate-900 tracking-tight">Đặt lại PIN</h2>
+        <p className="text-[14px] text-slate-500 font-medium mt-2 leading-relaxed">Nhập email tài khoản và tạo PIN mới. Đây là flow khôi phục mẫu cho prototype.</p>
+        <form onSubmit={handleRecover} className="mt-7 space-y-3">
+          <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Email tài khoản" />
+          <input value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))} type="password" inputMode="numeric" autoComplete="new-password" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300 tracking-[0.4em]" placeholder="PIN mới 4 số" />
+          {error && <p className="text-[12px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl">{error}</p>}
+          <button type="submit" className="w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all">
+            Cập nhật PIN
+          </button>
+        </form>
+      </AuthShell>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="h-full bg-slate-50 flex flex-col px-7 pt-20 pb-8 animate-page-enter">
-      <div className="w-16 h-16 bg-slate-900 rounded-[22px] flex items-center justify-center text-white shadow-xl mb-8">
-        <Lock size={28} />
-      </div>
-      <h1 className="text-[32px] font-black text-slate-900 tracking-tight leading-tight">{APP_NAME}</h1>
-      <p className="text-[14px] text-slate-500 font-semibold mt-2 leading-relaxed">Đăng nhập mẫu để bảo vệ dữ liệu tài chính cá nhân trong trình duyệt.</p>
-
-      <div className="mt-10 space-y-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Tên người dùng" />
-        <input value={pin} onChange={(e) => setPin(e.target.value)} type="password" inputMode="numeric" autoComplete="current-password" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Mã PIN" />
-      </div>
-
-      <button
-        type="submit"
-        className="mt-auto w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all"
-      >
-        Đăng nhập
-      </button>
-    </form>
+    <AuthShell>
+      <h2 className="text-[30px] font-black text-slate-900 tracking-tight">Thiết lập tài chính</h2>
+      <p className="text-[14px] text-slate-500 font-medium mt-2 leading-relaxed">Một phút để {APP_NAME} hiểu dòng tiền và mục tiêu đầu tiên của bạn.</p>
+      <form onSubmit={handleSetup} className="mt-7 space-y-3">
+        <input value={monthlyIncome} onChange={(e) => setMonthlyIncome(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Thu nhập tháng" />
+        <input value={walletBalance} onChange={(e) => setWalletBalance(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Số dư ví chính" />
+        <input value={goalName} onChange={(e) => setGoalName(e.target.value)} className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Bạn muốn tiết kiệm cho điều gì?" />
+        <input value={goalTarget} onChange={(e) => setGoalTarget(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className="w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300" placeholder="Số tiền mục tiêu" />
+        <div className="bg-emerald-50/80 border border-emerald-100 rounded-2xl p-3 flex gap-3">
+          <Sparkles size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+          <p className="text-[12px] font-semibold text-emerald-700 leading-relaxed">Dashboard sẽ cá nhân hóa số dư, mục tiêu và insight đầu tiên từ các thông tin này.</p>
+        </div>
+        <button type="submit" className="w-full bg-emerald-500 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(16,185,129,0.22)] active:scale-95 transition-all">
+          Vào dashboard
+        </button>
+      </form>
+    </AuthShell>
   );
 };
-
-const Onboarding = ({ onDone }) => (
-  <div className="h-full bg-white flex flex-col px-7 pt-16 pb-8 animate-page-enter">
-    <div className="grid grid-cols-3 gap-3 mb-8">
-      {[Wallet, Target, BarChart3].map((Icon, index) => (
-        <div key={index} className="h-24 bg-slate-50 rounded-[24px] flex items-center justify-center text-slate-800 border border-slate-100">
-          <Icon size={28} />
-        </div>
-      ))}
-    </div>
-    <h2 className="text-[30px] font-black text-slate-900 tracking-tight leading-tight">Quản lý chi tiêu trong 3 thao tác</h2>
-    <div className="mt-8 space-y-4">
-      {[
-        ['Thêm nhanh', 'Nhập số tiền, chọn danh mục và lưu ngay.'],
-        ['Theo dõi ngân sách', 'Xem ví, mục tiêu và cảnh báo vượt hạn mức.'],
-        ['Xuất dữ liệu', 'Tải file CSV có thể mở bằng Excel.']
-      ].map(([title, desc], index) => (
-        <div key={title} className="flex gap-4">
-          <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-[13px] font-black shrink-0">{index + 1}</div>
-          <div>
-            <p className="text-[15px] font-extrabold text-slate-900">{title}</p>
-            <p className="text-[13px] text-slate-500 font-medium mt-0.5 leading-relaxed">{desc}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-    <button onClick={onDone} className="mt-auto w-full bg-emerald-500 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(16,185,129,0.22)] active:scale-95 transition-all">
-      Bắt đầu sử dụng
-    </button>
-  </div>
-);
 
 const FinanceTools = ({ section, setSection, wallets, setWallets, budgets, setBudgets, goals, setGoals, transactions, onExport, formatVND }) => {
   const [walletName, setWalletName] = useState('');
@@ -1150,6 +1297,7 @@ export default function App() {
   }, []);
 
   const [user, setUser] = useState(storedState.user || null);
+  const [account, setAccount] = useState(storedState.account || (storedState.user ? { ...storedState.user, pin: storedState.user.pin || '1234' } : null));
   const [onboardingSeen, setOnboardingSeen] = useState(Boolean(storedState.onboardingSeen));
   const [groupedTransactions, setGroupedTransactions] = useState(normalizeGroups(storedState.groupedTransactions || defaultTransactions));
   const [wallets, setWallets] = useState(storedState.wallets || defaultWallets);
@@ -1164,13 +1312,14 @@ export default function App() {
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       user,
+      account,
       onboardingSeen,
       groupedTransactions: cleanGroups,
       wallets,
       budgets,
       goals
     }));
-  }, [user, onboardingSeen, groupedTransactions, wallets, budgets, goals]);
+  }, [user, account, onboardingSeen, groupedTransactions, wallets, budgets, goals]);
 
   const stats = useMemo(() => {
     let income = 0;
@@ -1227,6 +1376,16 @@ export default function App() {
     showToast('Đã xuất file CSV!');
   };
 
+  const handleAuthComplete = (payload) => {
+    if (payload.account) setAccount(payload.account);
+    if (payload.user) setUser(payload.user);
+    if (typeof payload.onboardingSeen === 'boolean') setOnboardingSeen(payload.onboardingSeen);
+    if (payload.wallets) setWallets(payload.wallets);
+    if (payload.goals) setGoals(payload.goals);
+    if (payload.groupedTransactions) setGroupedTransactions(normalizeGroups(payload.groupedTransactions));
+    showToast(payload.demo ? 'Đã mở chế độ demo!' : 'Chào mừng đến MoneyCare!');
+  };
+
   const handleLogout = () => {
     setUser(null);
     showToast('Đã đăng xuất!');
@@ -1239,19 +1398,7 @@ export default function App() {
       <div className="h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2">
         <div className="relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3">
           <div className="absolute inset-[11px] bg-slate-50 rounded-[38px] overflow-hidden flex flex-col ring-1 ring-black/5">
-            <AuthScreen onLogin={(nextUser) => { setUser(nextUser); showToast('Đăng nhập thành công!'); }} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (appState !== 'loading' && user && !onboardingSeen) {
-    return (
-      <div className="h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2">
-        <div className="relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3">
-          <div className="absolute inset-[11px] bg-slate-50 rounded-[38px] overflow-hidden flex flex-col ring-1 ring-black/5">
-            <Onboarding onDone={() => { setOnboardingSeen(true); showToast('Sẵn sàng quản lý chi tiêu!'); }} />
+            <AuthFlow account={account} onComplete={handleAuthComplete} />
           </div>
         </div>
       </div>
