@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  LayoutGrid, Plus, BarChart3, Settings, Eye, EyeOff, TrendingUp, TrendingDown, 
+  LayoutGrid, Plus, BarChart3, Settings, Eye, EyeOff, TrendingDown, 
   ChevronRight, Bell, Target, Wallet, ShieldCheck, History, MoreHorizontal, 
   ArrowDownLeft, ArrowUpRight, X, Coffee, ShoppingBag, Car, FileText, 
   DollarSign, Gamepad2, Check, Flame, Award, Lightbulb, Calendar, Edit3,
@@ -31,10 +31,30 @@ const getTransactionMeta = (transaction) => {
   return categoryMeta[transaction.category] || fallback;
 };
 
-const TransactionIcon = ({ transaction, size = 18 }) => {
+const getMerchantLogo = (merchant = '') => {
+  const key = merchant.toLowerCase();
+  if (key.includes('highlands')) return { text: 'H', bg: 'bg-amber-600', color: 'text-white' };
+  if (key.includes('netflix')) return { text: 'N', bg: 'bg-red-600', color: 'text-white' };
+  if (key.includes('grab')) return { text: 'G', bg: 'bg-emerald-500', color: 'text-white' };
+  if (key.includes('techcombank')) return { text: 'T', bg: 'bg-rose-600', color: 'text-white' };
+  const first = merchant.trim().charAt(0).toUpperCase() || 'M';
+  return { text: first, bg: 'bg-slate-900', color: 'text-white' };
+};
+
+const MerchantMark = ({ transaction }) => {
+  const logo = getMerchantLogo(transaction.merchant);
   const meta = getTransactionMeta(transaction);
   const Icon = meta.icon;
-  return <Icon size={size} />;
+  return (
+    <div className="relative w-[46px] h-[46px] shrink-0">
+      <div className={`w-full h-full rounded-[16px] ${logo.bg} ${logo.color} flex items-center justify-center text-[17px] font-black shadow-sm`}>
+        {logo.text}
+      </div>
+      <div className={`absolute -right-1 -bottom-1 w-5 h-5 rounded-lg ${meta.bg} ${meta.color} border-2 border-white flex items-center justify-center`}>
+        <Icon size={10} strokeWidth={3} />
+      </div>
+    </div>
+  );
 };
 
 const normalizeGroups = (groups) => (Array.isArray(groups) ? groups : []).map(group => ({
@@ -216,20 +236,20 @@ const QuickAdd = ({ onSave, onCancel }) => {
         {/* Scalable Context Flow */}
         <div className="w-full px-6 mb-8">
           <div className="bg-slate-50 border border-slate-100 rounded-[20px] p-2 flex items-center justify-between gap-2 shadow-sm">
-            <button className="flex items-center gap-2 bg-white px-3 py-2.5 rounded-xl shadow-[0_2px_6px_rgba(0,0,0,0.03)] border border-slate-100/50 text-slate-700 hover:bg-slate-50 active:scale-95 transition-all">
+            <button className="flex items-center gap-2 bg-white px-3 py-2.5 rounded-xl shadow-[0_2px_6px_rgba(0,0,0,0.03)] border border-slate-100/50 text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">
               <Wallet size={16} className="text-emerald-500" />
-              <span className="text-[13px] font-bold">Ví chính</span>
+              <span className="text-[13px] font-medium">Ví chính</span>
             </button>
-            <button className="flex items-center gap-2 bg-white px-3 py-2.5 rounded-xl shadow-[0_2px_6px_rgba(0,0,0,0.03)] border border-slate-100/50 text-slate-700 hover:bg-slate-50 active:scale-95 transition-all">
+            <button className="flex items-center gap-2 bg-white px-3 py-2.5 rounded-xl shadow-[0_2px_6px_rgba(0,0,0,0.03)] border border-slate-100/50 text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">
               <Calendar size={16} className="text-blue-500" />
-              <span className="text-[13px] font-bold">Hôm nay</span>
+              <span className="text-[13px] font-medium">Hôm nay</span>
             </button>
             <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2.5 rounded-xl shadow-[0_2px_6px_rgba(0,0,0,0.03)] border border-slate-100/50">
               <Edit3 size={16} className="text-slate-400 shrink-0" />
               <input 
                 type="text" 
                 placeholder="Tên người nhận..." 
-                className="bg-transparent border-none outline-none text-[13px] font-bold text-slate-700 w-full placeholder:text-slate-400 placeholder:font-medium"
+                className="bg-transparent border-none outline-none text-[13px] font-medium text-slate-700 w-full placeholder:text-slate-400 placeholder:font-medium"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
@@ -302,6 +322,10 @@ const Dashboard = ({ stats, filteredGroups, filters, setFilters, isBalanceVisibl
   const animatedExpense = useAnimatedNumber(stats.expense);
   const hasFilter = filters.search || filters.type !== 'all' || filters.category !== 'all';
   const displayGroups = filteredGroups;
+  const dueItems = [
+    { title: 'Netflix', amount: '-260k', when: 'Hôm nay', icon: RefreshCw, tone: 'indigo', progress: 92 },
+    { title: 'Tiền điện', amount: '-1.250k', when: '3 ngày tới', icon: Zap, tone: 'amber', progress: 58 }
+  ];
 
   return (
     <div className="animate-page-enter relative h-full overflow-y-auto no-scrollbar">
@@ -384,28 +408,35 @@ const Dashboard = ({ stats, filteredGroups, filters, setFilters, isBalanceVisibl
 
           {/* Quick Actions / Bills */}
           <div className="mt-8 px-6 animate-slide-up" style={{animationDelay: '0.2s'}}>
-            <h4 className="text-[17px] font-bold text-slate-800 tracking-[0.02em] mb-3 px-1">Sắp đến hạn</h4>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h4 className="text-[17px] font-bold text-slate-800 tracking-[0.02em]">Sắp đến hạn</h4>
+              <button className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full active:scale-95 transition-all">Xem tất cả</button>
+            </div>
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              <div className="flex-shrink-0 w-[140px] bg-white border border-slate-100 p-3.5 rounded-[20px] shadow-sm flex flex-col gap-3">
-                <div className="flex justify-between items-start">
-                   <div className="p-2 bg-indigo-50 text-indigo-500 rounded-[12px]"><RefreshCw size={16}/></div>
-                   <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">Hôm nay</span>
-                </div>
-                <div>
-                  <p className="text-[14px] font-bold text-slate-800">Netflix</p>
-                  <p className="text-[14px] font-semibold text-slate-500">-260k</p>
-                </div>
-              </div>
-              <div className="flex-shrink-0 w-[140px] bg-white border border-slate-100 p-3.5 rounded-[20px] shadow-sm flex flex-col gap-3">
-                <div className="flex justify-between items-start">
-                   <div className="p-2 bg-amber-50 text-amber-500 rounded-[12px]"><Zap size={16}/></div>
-                   <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">3 ngày tới</span>
-                </div>
-                <div>
-                  <p className="text-[14px] font-bold text-slate-800">Tiền điện</p>
-                  <p className="text-[14px] font-semibold text-slate-500">-1.250k</p>
-                </div>
-              </div>
+              {dueItems.map(item => {
+                const Icon = item.icon;
+                const color = item.tone === 'indigo' ? 'text-indigo-500 bg-indigo-50' : 'text-amber-500 bg-amber-50';
+                const bar = item.tone === 'indigo' ? 'bg-indigo-500' : 'bg-amber-500';
+                const badge = item.when === 'Hôm nay' ? 'text-rose-600 bg-rose-50' : 'text-slate-600 bg-slate-100';
+                return (
+                  <button key={item.title} className="flex-shrink-0 w-[156px] bg-white border border-slate-100 p-3.5 rounded-[20px] shadow-sm flex flex-col gap-3 text-left active:scale-[0.97] hover:border-slate-200 hover:shadow-md transition-all">
+                    <div className="flex justify-between items-start">
+                       <div className={`p-2 rounded-[12px] ${color}`}><Icon size={16}/></div>
+                       <ChevronRight size={17} className="text-slate-300" />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[14px] font-bold text-slate-800">{item.title}</p>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${badge}`}>{item.when}</span>
+                      </div>
+                      <p className="text-[14px] font-semibold text-slate-500 mt-1">{item.amount}</p>
+                    </div>
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${bar}`} style={{ width: `${item.progress}%` }}></div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -468,9 +499,7 @@ const Dashboard = ({ stats, filteredGroups, filters, setFilters, isBalanceVisibl
                       style={{ animationDelay: `${0.4 + (index * 0.1)}s`, animationFillMode: 'forwards' }}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-[46px] h-[46px] rounded-[16px] flex items-center justify-center ${t.bg} ${t.color}`}>
-                          <TransactionIcon transaction={t} />
-                        </div>
+                        <MerchantMark transaction={t} />
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-[15px] font-bold text-slate-800 leading-tight">{t.merchant}</p>
@@ -492,7 +521,7 @@ const Dashboard = ({ stats, filteredGroups, filters, setFilters, isBalanceVisibl
         </>
       )}
 
-      <div className="h-[140px] w-full shrink-0"></div>
+      <div className="h-[170px] w-full shrink-0"></div>
     </div>
   );
 };
@@ -534,6 +563,11 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
       ];
 
   const strokeColor = isEmpty ? "#e2e8f0" : "#10b981";
+  const insightCards = [
+    { label: 'So với tháng trước', value: '-8.4%', desc: 'Giảm chi tiêu', tone: 'emerald' },
+    { label: 'Ngày cao điểm', value: 'T5', desc: '85k phát sinh', tone: 'slate' },
+    { label: 'Danh mục nổi bật', value: 'Ăn uống', desc: 'Cần theo dõi nhẹ', tone: 'amber' }
+  ];
 
   return (
     <div className="animate-page-enter relative h-full overflow-y-auto no-scrollbar">
@@ -549,7 +583,7 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
           icon={<BarChart3 size={40} className="text-slate-300" strokeWidth={1.5} />}
         />
       ) : (
-        <div className="px-6 mb-8 animate-slide-up">
+        <div className="px-6 mb-5 animate-slide-up">
           <div className="bg-rose-50/80 border border-rose-100/80 rounded-[24px] p-4 flex gap-3.5 items-start shadow-sm">
             <div className="bg-white p-2 rounded-xl text-rose-500 shadow-[0_2px_6px_rgba(0,0,0,0.04)] border border-rose-50 shrink-0 mt-0.5">
                <TrendingDown size={18} strokeWidth={2.5} />
@@ -561,8 +595,27 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
         </div>
       )}
 
+      {!isEmpty && (
+        <div className="px-6 mb-6 grid grid-cols-3 gap-2.5 animate-slide-up" style={{animationDelay: '0.05s'}}>
+          {insightCards.map(card => {
+            const tone = card.tone === 'emerald'
+              ? 'bg-emerald-50/80 border-emerald-100 text-emerald-700'
+              : card.tone === 'amber'
+                ? 'bg-amber-50/80 border-amber-100 text-amber-700'
+                : 'bg-white border-slate-100 text-slate-700';
+            return (
+              <div key={card.label} className={`rounded-[20px] border p-3 shadow-sm ${tone}`}>
+                <p className="text-[9px] font-bold uppercase tracking-wider opacity-70 leading-tight">{card.label}</p>
+                <p className="text-[15px] font-black mt-2 leading-tight">{card.value}</p>
+                <p className="text-[10px] font-semibold opacity-70 mt-1 leading-tight">{card.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Chart Visualization */}
-      <div className={`px-6 mb-8 ${isEmpty ? 'opacity-50 pointer-events-none' : 'animate-slide-up'} style={{animationDelay: '0.1s'}}`}>
+      <div className={`px-6 mb-8 ${isEmpty ? 'opacity-50 pointer-events-none' : 'animate-slide-up'}`} style={{animationDelay: '0.1s'}}>
         <div className="bg-white rounded-[32px] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
           <div className="flex justify-between items-start mb-8">
             <div>
@@ -651,7 +704,7 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
         </div>
       </div>
 
-      <div className={`px-6 mb-8 ${isEmpty ? 'opacity-50 pointer-events-none' : 'animate-slide-up'} style={{animationDelay: '0.2s'}}`}>
+      <div className={`px-6 mb-8 ${isEmpty ? 'opacity-50 pointer-events-none' : 'animate-slide-up'}`} style={{animationDelay: '0.2s'}}>
         <div className="bg-white rounded-[32px] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
           <div className="flex justify-between items-center mb-6">
             <p className="text-slate-800 text-[16px] font-extrabold">Cơ cấu chi tiêu</p>
@@ -719,7 +772,33 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
         </div>
       </div>
 
-      <div className="h-[140px] w-full shrink-0"></div>
+      {!isEmpty && (
+        <div className="px-6 mb-8 animate-slide-up" style={{animationDelay: '0.3s'}}>
+          <div className="bg-white rounded-[28px] p-5 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[16px] font-extrabold text-slate-900">Xu hướng danh mục</p>
+              <span className="text-[11px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full">7 ngày</span>
+            </div>
+            {[
+              ['Ăn uống', 72, 'bg-emerald-500'],
+              ['Mua sắm', 48, 'bg-rose-500'],
+              ['Di chuyển', 31, 'bg-sky-500']
+            ].map(([name, pct, color]) => (
+              <div key={name} className="mb-3 last:mb-0">
+                <div className="flex justify-between text-[12px] font-bold text-slate-600 mb-1.5">
+                  <span>{name}</span>
+                  <span>{pct}%</span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${color} animate-width-in`} style={{ width: `${pct}%` }}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="h-[170px] w-full shrink-0"></div>
     </div>
   );
 };
@@ -917,7 +996,12 @@ const FinanceTools = ({ section, setSection, wallets, setWallets, budgets, setBu
   );
 };
 
-const Profile = ({ user, onOpenSection, onExport, onLogout }) => (
+const Profile = ({ user, wallets, goals, stats, onOpenSection, onExport, onLogout }) => {
+  const primaryGoal = goals?.[0];
+  const totalWalletBalance = (wallets || []).reduce((sum, wallet) => sum + wallet.balance, 0);
+  const goalProgress = primaryGoal ? Math.min((primaryGoal.current / primaryGoal.target) * 100, 100) : 0;
+
+  return (
   <div className="animate-page-enter relative h-full overflow-y-auto no-scrollbar pt-16">
     <div className="px-6 flex items-center gap-5 mb-8">
       <div className="relative">
@@ -953,12 +1037,46 @@ const Profile = ({ user, onOpenSection, onExport, onLogout }) => (
       </div>
     </div>
 
+    <div className="px-6 mb-6">
+      <div className="bg-white border border-slate-100 rounded-[28px] p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Thành tựu tháng</p>
+            <h3 className="text-[20px] font-black text-slate-900 mt-1">Dòng tiền +{((stats?.balance || 0) / 1000000).toFixed(1)}M</h3>
+          </div>
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <Award size={21} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-slate-50 rounded-2xl p-3">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ví liên kết</p>
+            <p className="text-[17px] font-black text-slate-900 mt-1">{wallets?.length || 0} ví</p>
+          </div>
+          <div className="bg-slate-50 rounded-2xl p-3">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Số dư ví</p>
+            <p className="text-[17px] font-black text-slate-900 mt-1">{(totalWalletBalance / 1000000).toFixed(1)}M</p>
+          </div>
+        </div>
+        <div className="mt-4 rounded-2xl bg-blue-50/70 border border-blue-100 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[12px] font-extrabold text-blue-700">{primaryGoal?.name || 'Mục tiêu tiết kiệm'}</p>
+            <span className="text-[11px] font-black text-blue-700">{Math.round(goalProgress)}%</span>
+          </div>
+          <div className="h-2 bg-white rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${goalProgress}%` }}></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div className="w-full px-6 space-y-2">
       <p className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest pl-2 mb-3 mt-6">Tài khoản</p>
       {[
         { icon: <Wallet size={20}/>, label: 'Quản lý Ví', action: () => onOpenSection('wallets') },
         { icon: <Target size={20}/>, label: 'Mục tiêu & Ngân sách', action: () => onOpenSection('budgets') },
         { icon: <History size={20}/>, label: 'Xuất dữ liệu Excel', action: onExport },
+        { icon: <FileText size={20}/>, label: 'Lịch sử xuất dữ liệu', action: () => onOpenSection('export') },
         { icon: <LogOut size={20}/>, label: 'Đăng xuất', action: onLogout },
       ].map((item, i) => (
         <button key={i} onClick={item.action} className="w-full flex items-center justify-between p-4 bg-white border border-slate-100 rounded-[20px] hover:border-slate-200 hover:shadow-sm active:scale-95 transition-all cursor-pointer group text-left">
@@ -971,9 +1089,10 @@ const Profile = ({ user, onOpenSection, onExport, onLogout }) => (
       ))}
     </div>
 
-    <div className="h-[140px] w-full shrink-0"></div>
+    <div className="h-[170px] w-full shrink-0"></div>
   </div>
-);
+  );
+};
 
 // --- MAIN APP ---
 
@@ -1176,38 +1295,38 @@ export default function App() {
                 {!section && tab === 'dashboard' && <Dashboard stats={stats} filteredGroups={filteredGroups} filters={filters} setFilters={setFilters} isBalanceVisible={isBalanceVisible} setIsBalanceVisible={setIsBalanceVisible} formatVND={formatVND} isEmpty={isEmpty} />}
                 {tab === 'quickadd' && <QuickAdd onSave={handleSaveTransaction} onCancel={() => setTab('dashboard')} />}
                 {!section && tab === 'analytics' && <Analytics stats={stats} formatVND={formatVND} isEmpty={isEmpty} />}
-                {!section && tab === 'profile' && <Profile user={user} onOpenSection={setSection} onExport={handleExport} onLogout={handleLogout} />}
+                {!section && tab === 'profile' && <Profile user={user} wallets={wallets} goals={goals} stats={stats} onOpenSection={setSection} onExport={handleExport} onLogout={handleLogout} />}
               </>
             )}
           </div>
 
           {/* Refined Elegant Nav Bar */}
           {(tab !== 'quickadd' && appState !== 'loading' && !section) && (
-            <div className="absolute bottom-6 left-5 right-5 z-40">
-              <nav className="w-full bg-white/95 backdrop-blur-xl rounded-[32px] px-6 py-2.5 flex justify-between items-center shadow-[0_15px_40px_-10px_rgba(0,0,0,0.1)] border border-slate-100">
-                <button onClick={() => setTab('dashboard')} className={`p-2 transition-all duration-300 touch-manipulation ${tab === 'dashboard' ? 'text-slate-900 scale-110' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <LayoutGrid size={24} fill={tab === 'dashboard' ? 'currentColor' : 'none'} />
+            <div className="absolute bottom-3 left-5 right-5 z-40">
+              <nav className="w-full bg-white/95 backdrop-blur-xl rounded-[30px] px-5 py-2 flex justify-between items-center shadow-[0_12px_32px_-12px_rgba(15,23,42,0.18)] border border-slate-100">
+                <button onClick={() => setTab('dashboard')} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 touch-manipulation ${tab === 'dashboard' ? 'bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.2)]' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+                  <LayoutGrid size={21} strokeWidth={tab === 'dashboard' ? 2.6 : 2.2} />
                 </button>
                 
-                <button onClick={() => setTab('analytics')} className={`p-2 transition-all duration-300 touch-manipulation ${tab === 'analytics' ? 'text-slate-900 scale-110' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <BarChart3 size={24} strokeWidth={tab === 'analytics' ? 2.5 : 2} />
+                <button onClick={() => setTab('analytics')} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 touch-manipulation ${tab === 'analytics' ? 'bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.2)]' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+                  <BarChart3 size={21} strokeWidth={tab === 'analytics' ? 2.6 : 2.2} />
                 </button>
 
                 {/* FAB */}
                 <button 
                   onClick={() => setTab('quickadd')} 
-                  className="w-[44px] h-[44px] -mt-5 bg-slate-900 text-white rounded-[16px] flex items-center justify-center shadow-[0_8px_16px_rgba(15,23,42,0.2)] hover:-translate-y-1 active:scale-95 transition-all duration-300 border-[2px] border-white relative group touch-manipulation"
+                  className="w-[44px] h-[44px] -mt-4 bg-slate-900 text-white rounded-[16px] flex items-center justify-center shadow-[0_8px_16px_rgba(15,23,42,0.2)] hover:-translate-y-0.5 active:scale-95 transition-all duration-300 border-[2px] border-white relative group touch-manipulation"
                 >
                   <div className="absolute inset-0 bg-slate-800 rounded-[14px] opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   <Plus size={20} strokeWidth={3} className="relative z-10" />
                 </button>
 
-                <button onClick={() => setTab('profile')} className={`p-2 transition-all duration-300 touch-manipulation ${tab === 'profile' ? 'text-slate-900 scale-110' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <Settings size={24} fill={tab === 'profile' ? 'currentColor' : 'none'} />
+                <button onClick={() => setTab('profile')} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 touch-manipulation ${tab === 'profile' ? 'bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.2)]' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+                  <Settings size={21} strokeWidth={tab === 'profile' ? 2.6 : 2.2} />
                 </button>
 
-                <button onClick={() => setSection('export')} className="p-2 text-slate-400 hover:text-slate-600 transition-colors touch-manipulation">
-                  <MoreHorizontal size={24} />
+                <button onClick={() => setSection('export')} className="w-10 h-10 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors touch-manipulation">
+                  <MoreHorizontal size={21} />
                 </button>
               </nav>
             </div>
@@ -1225,6 +1344,7 @@ export default function App() {
         @keyframes spin-chart { from { stroke-dasharray: 0, 100; } }
         @keyframes slide-in-right { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes bounce-soft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        @keyframes width-in { from { width: 0; } }
         
         .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-slide-down { animation: slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -1233,6 +1353,7 @@ export default function App() {
         .animate-scale-up { animation: scale-up 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         .animate-page-enter { animation: slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-bounce-soft { animation: bounce-soft 2s infinite; }
+        .animate-width-in { animation: width-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; }
         
         .line-draw-animation { animation: draw-line 1.5s ease-out forwards; }
         .chart-spin-animation { animation: spin-chart 1s ease-out forwards; }
