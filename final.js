@@ -409,27 +409,93 @@ const Analytics = ({ stats, formatVND, isEmpty }) => {
     ["Di chuy\u1EC3n", 31, "bg-sky-500"]
   ].map(([name, pct, color]) => /* @__PURE__ */ React.createElement("div", { key: name, className: "mb-3 last:mb-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between text-[12px] font-bold text-slate-600 mb-1.5" }, /* @__PURE__ */ React.createElement("span", null, name), /* @__PURE__ */ React.createElement("span", null, pct, "%")), /* @__PURE__ */ React.createElement("div", { className: "h-2 bg-slate-100 rounded-full overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: `h-full rounded-full ${color} animate-width-in`, style: { width: `${pct}%` } })))))), /* @__PURE__ */ React.createElement("div", { className: "h-[170px] w-full shrink-0" }));
 };
-const AuthScreen = ({ onLogin }) => {
-  const [name, setName] = useState("Minh Anh");
-  const [pin, setPin] = useState("1234");
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    onLogin({ name: name || "Minh Anh", email: "minhanh@email.com" });
+const AuthFlow = ({ account, onComplete }) => {
+  const [screen, setScreen] = useState("welcome");
+  const [name, setName] = useState(account?.name || "");
+  const [email, setEmail] = useState(account?.email || "");
+  const [pin, setPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [monthlyIncome, setMonthlyIncome] = useState("25000000");
+  const [walletBalance, setWalletBalance] = useState("5000000");
+  const [goalName, setGoalName] = useState("Qu\u1EF9 du l\u1ECBch \u0110\xE0 N\u1EB5ng");
+  const [goalTarget, setGoalTarget] = useState("12000000");
+  const [pendingAccount, setPendingAccount] = useState(null);
+  const [error, setError] = useState("");
+  const validateEmail = (value) => /\S+@\S+\.\S+/.test(value);
+  const validatePin = (value) => /^\d{4}$/.test(value);
+  const go = (nextScreen) => {
+    setError("");
+    setScreen(nextScreen);
   };
-  return /* @__PURE__ */ React.createElement("form", { onSubmit: handleSubmit, className: "h-full bg-slate-50 flex flex-col px-7 pt-20 pb-8 animate-page-enter" }, /* @__PURE__ */ React.createElement("div", { className: "w-16 h-16 bg-slate-900 rounded-[22px] flex items-center justify-center text-white shadow-xl mb-8" }, /* @__PURE__ */ React.createElement(Lock, { size: 28 })), /* @__PURE__ */ React.createElement("h1", { className: "text-[32px] font-black text-slate-900 tracking-tight leading-tight" }, APP_NAME), /* @__PURE__ */ React.createElement("p", { className: "text-[14px] text-slate-500 font-semibold mt-2 leading-relaxed" }, "\u0110\u0103ng nh\u1EADp m\u1EABu \u0111\u1EC3 b\u1EA3o v\u1EC7 d\u1EEF li\u1EC7u t\xE0i ch\xEDnh c\xE1 nh\xE2n trong tr\xECnh duy\u1EC7t."), /* @__PURE__ */ React.createElement("div", { className: "mt-10 space-y-3" }, /* @__PURE__ */ React.createElement("input", { value: name, onChange: (e) => setName(e.target.value), autoComplete: "name", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "T\xEAn ng\u01B0\u1EDDi d\xF9ng" }), /* @__PURE__ */ React.createElement("input", { value: pin, onChange: (e) => setPin(e.target.value), type: "password", inputMode: "numeric", autoComplete: "current-password", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "M\xE3 PIN" })), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      type: "submit",
-      className: "mt-auto w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all"
-    },
-    "\u0110\u0103ng nh\u1EADp"
-  ));
+  const handleRegister = (event) => {
+    event.preventDefault();
+    if (name.trim().length < 2) return setError("Vui l\xF2ng nh\u1EADp t\xEAn c\u1EE7a b\u1EA1n.");
+    if (!validateEmail(email)) return setError("Email ch\u01B0a \u0111\xFAng \u0111\u1ECBnh d\u1EA1ng.");
+    if (!validatePin(pin)) return setError("PIN c\u1EA7n g\u1ED3m \u0111\xFAng 4 s\u1ED1.");
+    setPendingAccount({ name: name.trim(), email: email.trim(), pin });
+    go("setup");
+  };
+  const handleLogin = (event) => {
+    event.preventDefault();
+    if (!account) return setError("Ch\u01B0a c\xF3 t\xE0i kho\u1EA3n tr\xEAn thi\u1EBFt b\u1ECB n\xE0y. H\xE3y \u0111\u0103ng k\xFD ho\u1EB7c xem demo.");
+    if (!validatePin(pin)) return setError("Nh\u1EADp PIN 4 s\u1ED1 \u0111\u1EC3 \u0111\u0103ng nh\u1EADp.");
+    if (pin !== account.pin) return setError("PIN kh\xF4ng \u0111\xFAng. B\u1EA1n c\xF3 th\u1EC3 \u0111\u1EB7t l\u1EA1i PIN b\xEAn d\u01B0\u1EDBi.");
+    onComplete({ user: account, account, onboardingSeen: true });
+  };
+  const handleRecover = (event) => {
+    event.preventDefault();
+    if (!account) return setError("Ch\u01B0a c\xF3 t\xE0i kho\u1EA3n \u0111\u1EC3 kh\xF4i ph\u1EE5c.");
+    if (email.trim().toLowerCase() !== account.email.toLowerCase()) return setError("Email kh\xF4i ph\u1EE5c kh\xF4ng tr\xF9ng v\u1EDBi t\xE0i kho\u1EA3n.");
+    if (!validatePin(newPin)) return setError("PIN m\u1EDBi c\u1EA7n g\u1ED3m \u0111\xFAng 4 s\u1ED1.");
+    const recovered = { ...account, pin: newPin };
+    onComplete({ user: recovered, account: recovered, onboardingSeen: true });
+  };
+  const handleSetup = (event) => {
+    event.preventDefault();
+    const nextAccount = pendingAccount || { name: name || "Minh Anh", email: email || "minhanh@email.com", pin: pin || "1234" };
+    const income = Number(monthlyIncome) || 0;
+    const balance = Number(walletBalance) || 0;
+    const target = Number(goalTarget) || 0;
+    onComplete({
+      user: nextAccount,
+      account: nextAccount,
+      onboardingSeen: true,
+      wallets: [{ id: Date.now(), name: "V\xED ch\xEDnh", balance }],
+      goals: [{ id: Date.now() + 1, name: goalName || "M\u1EE5c ti\xEAu ti\u1EBFt ki\u1EC7m", target: target || 1e7, current: Math.min(balance, target || balance) }],
+      groupedTransactions: [
+        {
+          date: "H\xF4m nay",
+          items: [
+            { id: Date.now() + 2, type: "income", merchant: "Thu nh\u1EADp th\xE1ng", category: "L\u01B0\u01A1ng", amount: income, note: "Thi\u1EBFt l\u1EADp ban \u0111\u1EA7u", bg: "bg-emerald-50", color: "text-emerald-600" }
+          ]
+        }
+      ]
+    });
+  };
+  const startDemo = () => {
+    const demoAccount = { name: "Minh Anh", email: "demo@moneycare.app", pin: "1234", isDemo: true };
+    onComplete({ user: demoAccount, account: demoAccount, onboardingSeen: true, demo: true });
+  };
+  const AuthShell = ({ children }) => /* @__PURE__ */ React.createElement("div", { className: "h-full bg-slate-50 flex flex-col px-7 pt-14 pb-7 animate-page-enter overflow-y-auto no-scrollbar" }, screen !== "welcome" && /* @__PURE__ */ React.createElement("button", { onClick: () => go("welcome"), className: "mb-5 w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-600 shadow-sm active:scale-90" }, /* @__PURE__ */ React.createElement(X, { size: 19 })), children);
+  const TrustStrip = () => /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-2 mt-6" }, [
+    [Lock, "PIN 4 s\u1ED1"],
+    [ShieldCheck, "C\u1EE5c b\u1ED9"],
+    [EyeOff, "\u1EA8n s\u1ED1 d\u01B0"]
+  ].map(([Icon, label]) => /* @__PURE__ */ React.createElement("div", { key: label, className: "bg-white border border-slate-100 rounded-2xl p-3 text-center shadow-sm" }, /* @__PURE__ */ React.createElement(Icon, { size: 18, className: "mx-auto text-slate-700" }), /* @__PURE__ */ React.createElement("p", { className: "text-[10px] font-bold text-slate-500 mt-2" }, label))));
+  if (screen === "welcome") {
+    return /* @__PURE__ */ React.createElement(AuthShell, null, /* @__PURE__ */ React.createElement("div", { className: "w-16 h-16 bg-slate-900 rounded-[22px] flex items-center justify-center text-white shadow-xl mb-7" }, /* @__PURE__ */ React.createElement(Wallet, { size: 30 })), /* @__PURE__ */ React.createElement("p", { className: "text-[11px] font-black text-emerald-600 uppercase tracking-[0.24em] mb-3" }, "Personal finance"), /* @__PURE__ */ React.createElement("h1", { className: "text-[34px] font-black text-slate-900 tracking-tight leading-[1.05]" }, APP_NAME), /* @__PURE__ */ React.createElement("p", { className: "text-[15px] text-slate-500 font-medium mt-3 leading-relaxed" }, "Qu\u1EA3n l\xFD ti\u1EC1n d\u1EC5 h\u01A1n m\u1ED7i ng\xE0y v\u1EDBi v\xED, ng\xE2n s\xE1ch, m\u1EE5c ti\xEAu v\xE0 insight t\xE0i ch\xEDnh nh\u1EB9 nh\xE0ng."), /* @__PURE__ */ React.createElement(TrustStrip, null), /* @__PURE__ */ React.createElement("div", { className: "mt-auto space-y-3 pt-10" }, /* @__PURE__ */ React.createElement("button", { onClick: () => go("register"), className: "w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all" }, "B\u1EAFt \u0111\u1EA7u mi\u1EC5n ph\xED"), /* @__PURE__ */ React.createElement("button", { onClick: () => go("login"), className: "w-full bg-white text-slate-800 border border-slate-100 rounded-[24px] py-4 text-[15px] font-extrabold active:scale-95 transition-all" }, "T\xF4i \u0111\xE3 c\xF3 t\xE0i kho\u1EA3n"), /* @__PURE__ */ React.createElement("button", { onClick: startDemo, className: "w-full text-emerald-600 rounded-[20px] py-2.5 text-[13px] font-extrabold active:scale-95 transition-all" }, "Tr\u1EA3i nghi\u1EC7m demo")));
+  }
+  if (screen === "register") {
+    return /* @__PURE__ */ React.createElement(AuthShell, null, /* @__PURE__ */ React.createElement("h2", { className: "text-[30px] font-black text-slate-900 tracking-tight" }, "T\u1EA1o t\xE0i kho\u1EA3n"), /* @__PURE__ */ React.createElement("p", { className: "text-[14px] text-slate-500 font-medium mt-2 leading-relaxed" }, "Ch\u1EC9 c\u1EA7n t\xEAn, email v\xE0 PIN 4 s\u1ED1. D\u1EEF li\u1EC7u prototype \u0111\u01B0\u1EE3c l\u01B0u tr\xEAn tr\xECnh duy\u1EC7t."), /* @__PURE__ */ React.createElement("form", { onSubmit: handleRegister, className: "mt-7 space-y-3" }, /* @__PURE__ */ React.createElement("input", { value: name, onChange: (e) => setName(e.target.value), autoComplete: "name", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "T\xEAn c\u1EE7a b\u1EA1n" }), /* @__PURE__ */ React.createElement("input", { value: email, onChange: (e) => setEmail(e.target.value), autoComplete: "email", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "Email" }), /* @__PURE__ */ React.createElement("input", { value: pin, onChange: (e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4)), type: "password", inputMode: "numeric", autoComplete: "new-password", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300 tracking-[0.4em]", placeholder: "PIN 4 s\u1ED1" }), error && /* @__PURE__ */ React.createElement("p", { className: "text-[12px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl" }, error), /* @__PURE__ */ React.createElement("button", { type: "submit", className: "w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all" }, "Ti\u1EBFp t\u1EE5c")));
+  }
+  if (screen === "login") {
+    return /* @__PURE__ */ React.createElement(AuthShell, null, /* @__PURE__ */ React.createElement("div", { className: "w-14 h-14 rounded-[20px] bg-slate-900 text-white flex items-center justify-center mb-6" }, /* @__PURE__ */ React.createElement(Lock, { size: 26 })), /* @__PURE__ */ React.createElement("h2", { className: "text-[30px] font-black text-slate-900 tracking-tight" }, "M\u1EDF kh\xF3a ", APP_NAME), /* @__PURE__ */ React.createElement("p", { className: "text-[14px] text-slate-500 font-medium mt-2 leading-relaxed" }, account ? `\u0110\u0103ng nh\u1EADp b\u1EB1ng PIN c\u1EE7a ${account.email}.` : "Ch\u01B0a c\xF3 t\xE0i kho\u1EA3n tr\xEAn thi\u1EBFt b\u1ECB n\xE0y."), /* @__PURE__ */ React.createElement("form", { onSubmit: handleLogin, className: "mt-7 space-y-3" }, /* @__PURE__ */ React.createElement("input", { value: pin, onChange: (e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4)), type: "password", inputMode: "numeric", autoComplete: "current-password", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-center text-[26px] font-black outline-none focus:border-slate-300 tracking-[0.55em]", placeholder: "\u2022\u2022\u2022\u2022" }), /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => account ? onComplete({ user: account, account, onboardingSeen: true }) : setError("H\xE3y t\u1EA1o t\xE0i kho\u1EA3n tr\u01B0\u1EDBc khi d\xF9ng Face ID."), className: "w-full bg-white border border-slate-100 text-slate-700 rounded-[20px] py-3 text-[13px] font-extrabold flex items-center justify-center gap-2 active:scale-95 transition-all" }, /* @__PURE__ */ React.createElement(ShieldCheck, { size: 17 }), "Face ID kh\u1EA3 d\u1EE5ng"), error && /* @__PURE__ */ React.createElement("p", { className: "text-[12px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl" }, error), /* @__PURE__ */ React.createElement("button", { type: "submit", className: "w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all" }, "\u0110\u0103ng nh\u1EADp"), /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => go("recover"), className: "w-full text-slate-500 rounded-[18px] py-2.5 text-[13px] font-bold" }, "Qu\xEAn PIN?")));
+  }
+  if (screen === "recover") {
+    return /* @__PURE__ */ React.createElement(AuthShell, null, /* @__PURE__ */ React.createElement("h2", { className: "text-[30px] font-black text-slate-900 tracking-tight" }, "\u0110\u1EB7t l\u1EA1i PIN"), /* @__PURE__ */ React.createElement("p", { className: "text-[14px] text-slate-500 font-medium mt-2 leading-relaxed" }, "Nh\u1EADp email t\xE0i kho\u1EA3n v\xE0 t\u1EA1o PIN m\u1EDBi. \u0110\xE2y l\xE0 flow kh\xF4i ph\u1EE5c m\u1EABu cho prototype."), /* @__PURE__ */ React.createElement("form", { onSubmit: handleRecover, className: "mt-7 space-y-3" }, /* @__PURE__ */ React.createElement("input", { value: email, onChange: (e) => setEmail(e.target.value), autoComplete: "email", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "Email t\xE0i kho\u1EA3n" }), /* @__PURE__ */ React.createElement("input", { value: newPin, onChange: (e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4)), type: "password", inputMode: "numeric", autoComplete: "new-password", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300 tracking-[0.4em]", placeholder: "PIN m\u1EDBi 4 s\u1ED1" }), error && /* @__PURE__ */ React.createElement("p", { className: "text-[12px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl" }, error), /* @__PURE__ */ React.createElement("button", { type: "submit", className: "w-full bg-slate-900 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(15,23,42,0.22)] active:scale-95 transition-all" }, "C\u1EADp nh\u1EADt PIN")));
+  }
+  return /* @__PURE__ */ React.createElement(AuthShell, null, /* @__PURE__ */ React.createElement("h2", { className: "text-[30px] font-black text-slate-900 tracking-tight" }, "Thi\u1EBFt l\u1EADp t\xE0i ch\xEDnh"), /* @__PURE__ */ React.createElement("p", { className: "text-[14px] text-slate-500 font-medium mt-2 leading-relaxed" }, "M\u1ED9t ph\xFAt \u0111\u1EC3 ", APP_NAME, " hi\u1EC3u d\xF2ng ti\u1EC1n v\xE0 m\u1EE5c ti\xEAu \u0111\u1EA7u ti\xEAn c\u1EE7a b\u1EA1n."), /* @__PURE__ */ React.createElement("form", { onSubmit: handleSetup, className: "mt-7 space-y-3" }, /* @__PURE__ */ React.createElement("input", { value: monthlyIncome, onChange: (e) => setMonthlyIncome(e.target.value.replace(/\D/g, "")), inputMode: "numeric", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "Thu nh\u1EADp th\xE1ng" }), /* @__PURE__ */ React.createElement("input", { value: walletBalance, onChange: (e) => setWalletBalance(e.target.value.replace(/\D/g, "")), inputMode: "numeric", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "S\u1ED1 d\u01B0 v\xED ch\xEDnh" }), /* @__PURE__ */ React.createElement("input", { value: goalName, onChange: (e) => setGoalName(e.target.value), className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "B\u1EA1n mu\u1ED1n ti\u1EBFt ki\u1EC7m cho \u0111i\u1EC1u g\xEC?" }), /* @__PURE__ */ React.createElement("input", { value: goalTarget, onChange: (e) => setGoalTarget(e.target.value.replace(/\D/g, "")), inputMode: "numeric", className: "w-full bg-white border border-slate-100 rounded-2xl px-4 py-4 text-[15px] font-bold outline-none focus:border-slate-300", placeholder: "S\u1ED1 ti\u1EC1n m\u1EE5c ti\xEAu" }), /* @__PURE__ */ React.createElement("div", { className: "bg-emerald-50/80 border border-emerald-100 rounded-2xl p-3 flex gap-3" }, /* @__PURE__ */ React.createElement(Sparkles, { size: 18, className: "text-emerald-600 shrink-0 mt-0.5" }), /* @__PURE__ */ React.createElement("p", { className: "text-[12px] font-semibold text-emerald-700 leading-relaxed" }, "Dashboard s\u1EBD c\xE1 nh\xE2n h\xF3a s\u1ED1 d\u01B0, m\u1EE5c ti\xEAu v\xE0 insight \u0111\u1EA7u ti\xEAn t\u1EEB c\xE1c th\xF4ng tin n\xE0y.")), /* @__PURE__ */ React.createElement("button", { type: "submit", className: "w-full bg-emerald-500 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(16,185,129,0.22)] active:scale-95 transition-all" }, "V\xE0o dashboard")));
 };
-const Onboarding = ({ onDone }) => /* @__PURE__ */ React.createElement("div", { className: "h-full bg-white flex flex-col px-7 pt-16 pb-8 animate-page-enter" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-3 mb-8" }, [Wallet, Target, BarChart3].map((Icon, index) => /* @__PURE__ */ React.createElement("div", { key: index, className: "h-24 bg-slate-50 rounded-[24px] flex items-center justify-center text-slate-800 border border-slate-100" }, /* @__PURE__ */ React.createElement(Icon, { size: 28 })))), /* @__PURE__ */ React.createElement("h2", { className: "text-[30px] font-black text-slate-900 tracking-tight leading-tight" }, "Qu\u1EA3n l\xFD chi ti\xEAu trong 3 thao t\xE1c"), /* @__PURE__ */ React.createElement("div", { className: "mt-8 space-y-4" }, [
-  ["Th\xEAm nhanh", "Nh\u1EADp s\u1ED1 ti\u1EC1n, ch\u1ECDn danh m\u1EE5c v\xE0 l\u01B0u ngay."],
-  ["Theo d\xF5i ng\xE2n s\xE1ch", "Xem v\xED, m\u1EE5c ti\xEAu v\xE0 c\u1EA3nh b\xE1o v\u01B0\u1EE3t h\u1EA1n m\u1EE9c."],
-  ["Xu\u1EA5t d\u1EEF li\u1EC7u", "T\u1EA3i file CSV c\xF3 th\u1EC3 m\u1EDF b\u1EB1ng Excel."]
-].map(([title, desc], index) => /* @__PURE__ */ React.createElement("div", { key: title, className: "flex gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-[13px] font-black shrink-0" }, index + 1), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-[15px] font-extrabold text-slate-900" }, title), /* @__PURE__ */ React.createElement("p", { className: "text-[13px] text-slate-500 font-medium mt-0.5 leading-relaxed" }, desc))))), /* @__PURE__ */ React.createElement("button", { onClick: onDone, className: "mt-auto w-full bg-emerald-500 text-white rounded-[24px] py-4 text-[15px] font-extrabold shadow-[0_12px_24px_rgba(16,185,129,0.22)] active:scale-95 transition-all" }, "B\u1EAFt \u0111\u1EA7u s\u1EED d\u1EE5ng"));
 const FinanceTools = ({ section, setSection, wallets, setWallets, budgets, setBudgets, goals, setGoals, transactions, onExport, formatVND }) => {
   const [walletName, setWalletName] = useState("");
   const [walletAmount, setWalletAmount] = useState("");
@@ -532,6 +598,7 @@ function App() {
     }
   }, []);
   const [user, setUser] = useState(storedState.user || null);
+  const [account, setAccount] = useState(storedState.account || (storedState.user ? { ...storedState.user, pin: storedState.user.pin || "1234" } : null));
   const [onboardingSeen, setOnboardingSeen] = useState(Boolean(storedState.onboardingSeen));
   const [groupedTransactions, setGroupedTransactions] = useState(normalizeGroups(storedState.groupedTransactions || defaultTransactions));
   const [wallets, setWallets] = useState(storedState.wallets || defaultWallets);
@@ -545,13 +612,14 @@ function App() {
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       user,
+      account,
       onboardingSeen,
       groupedTransactions: cleanGroups,
       wallets,
       budgets,
       goals
     }));
-  }, [user, onboardingSeen, groupedTransactions, wallets, budgets, goals]);
+  }, [user, account, onboardingSeen, groupedTransactions, wallets, budgets, goals]);
   const stats = useMemo(() => {
     let income = 0;
     let expense = 0;
@@ -597,22 +665,22 @@ function App() {
     downloadCsv(allTransactions);
     showToast("\u0110\xE3 xu\u1EA5t file CSV!");
   };
+  const handleAuthComplete = (payload) => {
+    if (payload.account) setAccount(payload.account);
+    if (payload.user) setUser(payload.user);
+    if (typeof payload.onboardingSeen === "boolean") setOnboardingSeen(payload.onboardingSeen);
+    if (payload.wallets) setWallets(payload.wallets);
+    if (payload.goals) setGoals(payload.goals);
+    if (payload.groupedTransactions) setGroupedTransactions(normalizeGroups(payload.groupedTransactions));
+    showToast(payload.demo ? "\u0110\xE3 m\u1EDF ch\u1EBF \u0111\u1ED9 demo!" : "Ch\xE0o m\u1EEBng \u0111\u1EBFn MoneyCare!");
+  };
   const handleLogout = () => {
     setUser(null);
     showToast("\u0110\xE3 \u0111\u0103ng xu\u1EA5t!");
   };
   const isEmpty = groupedTransactions.length === 0;
   if (appState !== "loading" && !user) {
-    return /* @__PURE__ */ React.createElement("div", { className: "h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2" }, /* @__PURE__ */ React.createElement("div", { className: "relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3" }, /* @__PURE__ */ React.createElement("div", { className: "absolute inset-[11px] bg-slate-50 rounded-[38px] overflow-hidden flex flex-col ring-1 ring-black/5" }, /* @__PURE__ */ React.createElement(AuthScreen, { onLogin: (nextUser) => {
-      setUser(nextUser);
-      showToast("\u0110\u0103ng nh\u1EADp th\xE0nh c\xF4ng!");
-    } }))));
-  }
-  if (appState !== "loading" && user && !onboardingSeen) {
-    return /* @__PURE__ */ React.createElement("div", { className: "h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2" }, /* @__PURE__ */ React.createElement("div", { className: "relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3" }, /* @__PURE__ */ React.createElement("div", { className: "absolute inset-[11px] bg-slate-50 rounded-[38px] overflow-hidden flex flex-col ring-1 ring-black/5" }, /* @__PURE__ */ React.createElement(Onboarding, { onDone: () => {
-      setOnboardingSeen(true);
-      showToast("S\u1EB5n s\xE0ng qu\u1EA3n l\xFD chi ti\xEAu!");
-    } }))));
+    return /* @__PURE__ */ React.createElement("div", { className: "h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2" }, /* @__PURE__ */ React.createElement("div", { className: "relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3" }, /* @__PURE__ */ React.createElement("div", { className: "absolute inset-[11px] bg-slate-50 rounded-[38px] overflow-hidden flex flex-col ring-1 ring-black/5" }, /* @__PURE__ */ React.createElement(AuthFlow, { account, onComplete: handleAuthComplete }))));
   }
   return /* @__PURE__ */ React.createElement("div", { className: "h-screen bg-slate-100/80 font-['Inter',sans-serif] flex flex-col justify-center items-center overflow-hidden py-2" }, toast && /* @__PURE__ */ React.createElement("div", { className: "fixed top-8 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.2)] flex items-center gap-3 animate-slide-down border border-slate-700" }, /* @__PURE__ */ React.createElement("div", { className: "bg-emerald-500/20 p-1.5 rounded-full" }, /* @__PURE__ */ React.createElement(Check, { size: 14, strokeWidth: 3, className: "text-emerald-400" })), /* @__PURE__ */ React.createElement("span", { className: "text-[13px] font-bold tracking-wide" }, toast)), /* @__PURE__ */ React.createElement("div", { className: "relative w-full max-w-[390px] h-[min(780px,calc(100dvh-16px))] bg-[#12141A] lg:rounded-[48px] shadow-[0_34px_70px_-18px_rgba(0,0,0,0.36)] flex-shrink-0 mx-3" }, /* @__PURE__ */ React.createElement("div", { className: "hidden lg:block absolute top-[110px] -left-[4px] w-[4px] h-[28px] bg-[#12141A] rounded-l-md shadow-inner" }), /* @__PURE__ */ React.createElement("div", { className: "hidden lg:block absolute top-[170px] -left-[4px] w-[4px] h-[54px] bg-[#12141A] rounded-l-md shadow-inner" }), /* @__PURE__ */ React.createElement("div", { className: "hidden lg:block absolute top-[240px] -left-[4px] w-[4px] h-[54px] bg-[#12141A] rounded-l-md shadow-inner" }), /* @__PURE__ */ React.createElement("div", { className: "hidden lg:block absolute top-[190px] -right-[4px] w-[4px] h-[74px] bg-[#12141A] rounded-r-md shadow-inner" }), /* @__PURE__ */ React.createElement("div", { className: "absolute inset-[11px] bg-slate-50 rounded-[38px] overflow-hidden flex flex-col ring-1 ring-black/5" }, /* @__PURE__ */ React.createElement("div", { className: "hidden lg:flex absolute top-0 left-1/2 -translate-x-1/2 w-[160px] h-[30px] bg-[#12141A] rounded-b-[20px] z-[60] items-center justify-center gap-4 shadow-sm" }, /* @__PURE__ */ React.createElement("div", { className: "w-12 h-1.5 rounded-full bg-slate-800 shadow-inner" }), /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 rounded-full bg-[#0a0a0c] shadow-[inset_0_-1px_2px_rgba(255,255,255,0.1)] border border-slate-800" })), /* @__PURE__ */ React.createElement("div", { className: "flex-1 overflow-hidden relative z-10 bg-slate-50" }, appState === "loading" ? /* @__PURE__ */ React.createElement(SkeletonDashboard, null) : /* @__PURE__ */ React.createElement(React.Fragment, null, section && /* @__PURE__ */ React.createElement(FinanceTools, { section, setSection, wallets, setWallets, budgets, setBudgets, goals, setGoals, transactions: allTransactions, onExport: handleExport, formatVND }), !section && tab === "dashboard" && /* @__PURE__ */ React.createElement(Dashboard, { stats, filteredGroups, filters, setFilters, isBalanceVisible, setIsBalanceVisible, formatVND, isEmpty }), tab === "quickadd" && /* @__PURE__ */ React.createElement(QuickAdd, { onSave: handleSaveTransaction, onCancel: () => setTab("dashboard") }), !section && tab === "analytics" && /* @__PURE__ */ React.createElement(Analytics, { stats, formatVND, isEmpty }), !section && tab === "profile" && /* @__PURE__ */ React.createElement(Profile, { user, wallets, goals, stats, onOpenSection: setSection, onExport: handleExport, onLogout: handleLogout }))), tab !== "quickadd" && appState !== "loading" && !section && /* @__PURE__ */ React.createElement("div", { className: "absolute bottom-3 left-5 right-5 z-40" }, /* @__PURE__ */ React.createElement("nav", { className: "w-full bg-white/95 backdrop-blur-xl rounded-[30px] px-5 py-2 flex justify-between items-center shadow-[0_12px_32px_-12px_rgba(15,23,42,0.18)] border border-slate-100" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setTab("dashboard"), className: `w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 touch-manipulation ${tab === "dashboard" ? "bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.2)]" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"}` }, /* @__PURE__ */ React.createElement(LayoutGrid, { size: 21, strokeWidth: tab === "dashboard" ? 2.6 : 2.2 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setTab("analytics"), className: `w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 touch-manipulation ${tab === "analytics" ? "bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.2)]" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"}` }, /* @__PURE__ */ React.createElement(BarChart3, { size: 21, strokeWidth: tab === "analytics" ? 2.6 : 2.2 })), /* @__PURE__ */ React.createElement(
     "button",
